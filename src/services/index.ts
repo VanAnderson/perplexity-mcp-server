@@ -12,3 +12,11 @@ export {
   type PerplexityChatCompletionRequest,
   type PerplexityChatCompletionResponse,
 } from './perplexityApi.js'; // Ensure .js extension for ES module compatibility
+
+export {
+  conversationPersistenceService,
+  ConversationSchema,
+  ConversationMessageSchema,
+  type Conversation,
+  type ConversationMessage,
+} from './conversationPersistence.js';

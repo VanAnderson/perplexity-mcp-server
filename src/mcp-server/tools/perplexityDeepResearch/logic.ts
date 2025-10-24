@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { perplexityApiService, PerplexityChatCompletionRequest } from '../../../services/index.js';
+import { perplexityApiService, conversationPersistenceService, PerplexityChatCompletionRequest } from '../../../services/index.js';
 import { BaseErrorCode, McpError } from '../../../types-global/errors.js';
 import { logger, RequestContext } from '../../../utils/index.js';
 import { PerplexitySearchResponseSchema } from '../perplexitySearch/logic.js';
@@ -79,12 +79,24 @@ export async function perplexityDeepResearchLogic(
     );
   }
 
+  // Create conversation with system prompt, user query, and assistant response
+  const conversation = await conversationPersistenceService.createConversation(
+    [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: params.query },
+      { role: 'assistant', content: rawResultText },
+    ],
+    context
+  );
+
   const toolResponse: PerplexityDeepResearchResponse = {
     rawResultText,
     responseId: response.id,
     modelUsed: response.model,
     usage: response.usage,
     searchResults: response.search_results,
+    conversationId: conversation.conversationId,
+    conversationPath: conversationPersistenceService.getConversationPath(conversation.conversationId),
   };
 
   logger.info("Perplexity deep research logic completed successfully.", {
@@ -93,6 +105,7 @@ export async function perplexityDeepResearchLogic(
     model: toolResponse.modelUsed,
     usage: toolResponse.usage,
     searchResultCount: toolResponse.searchResults?.length ?? 0,
+    conversationId: toolResponse.conversationId,
   });
 
   return toolResponse;

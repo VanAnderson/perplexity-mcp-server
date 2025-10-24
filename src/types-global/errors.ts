@@ -51,6 +51,12 @@ export enum BaseErrorCode {
   SHUTDOWN_ERROR = "SHUTDOWN_ERROR",
   /** A generic error occurred during the execution of an agent's task. */
   AGENT_EXECUTION_ERROR = "AGENT_EXECUTION_ERROR",
+  /** The requested conversation could not be found. */
+  CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND",
+  /** The conversation file is corrupted or cannot be parsed. */
+  CONVERSATION_CORRUPTED = "CONVERSATION_CORRUPTED",
+  /** An error occurred during file system operations. */
+  FILESYSTEM_ERROR = "FILESYSTEM_ERROR",
 }
 
 /**

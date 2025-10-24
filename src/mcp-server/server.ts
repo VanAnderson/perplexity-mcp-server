@@ -15,7 +15,10 @@ import { BaseErrorCode } from "../types-global/errors.js";
 import { ErrorHandler, logger, requestContextService } from "../utils/index.js";
 
 // Import registration functions for all tools (alphabetized)
+import { registerGetConversationHistory } from "./tools/getConversationHistory/index.js";
+import { registerPerplexityDeepResearchFollowup } from "./tools/perplexityDeepResearchFollowup/index.js";
 import { registerPerplexityDeepResearchTool } from "./tools/perplexityDeepResearch/index.js";
+import { registerPerplexitySearchFollowup } from "./tools/perplexitySearchFollowup/index.js";
 import { registerPerplexitySearchTool } from "./tools/perplexitySearch/index.js";
 
 // Import transport setup functions
@@ -55,6 +58,9 @@ async function createMcpServerInstance(): Promise<McpServer> {
       logger.debug("Registering tools...", context);
       await registerPerplexityDeepResearchTool(server);
       await registerPerplexitySearchTool(server);
+      await registerPerplexitySearchFollowup(server);
+      await registerPerplexityDeepResearchFollowup(server);
+      await registerGetConversationHistory(server);
       logger.info("Tools registered successfully", context);
     },
     {

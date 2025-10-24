@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { config } from '../../../config/index.js';
-import { perplexityApiService, PerplexityChatCompletionRequest, PerplexityChatCompletionRequestSchema } from '../../../services/index.js';
+import { perplexityApiService, conversationPersistenceService, PerplexityChatCompletionRequest, PerplexityChatCompletionRequestSchema } from '../../../services/index.js';
 import { BaseErrorCode, McpError } from '../../../types-global/errors.js';
 import { logger, RequestContext } from '../../../utils/index.js';
 
@@ -38,6 +38,8 @@ export const PerplexitySearchResponseSchema = z.object({
         total_tokens: z.number(),
     }).describe("Token usage details for the API call."),
     searchResults: z.array(SearchResultSchema).optional().describe("An array of web search results used to generate the response."),
+    conversationId: z.string().describe("The unique conversation ID for this search session."),
+    conversationPath: z.string().describe("The absolute path to the conversation directory."),
 });
 
 
@@ -117,12 +119,24 @@ export async function perplexitySearchLogic(
     );
   }
 
+  // Create conversation with system prompt, user query, and assistant response
+  const conversation = await conversationPersistenceService.createConversation(
+    [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: params.query },
+      { role: 'assistant', content: rawResultText },
+    ],
+    context
+  );
+
   const toolResponse: PerplexitySearchResponse = {
     rawResultText,
     responseId: response.id,
     modelUsed: response.model,
     usage: response.usage,
     searchResults: response.search_results,
+    conversationId: conversation.conversationId,
+    conversationPath: conversationPersistenceService.getConversationPath(conversation.conversationId),
   };
 
   logger.info("Perplexity search logic completed successfully.", {
@@ -131,6 +145,7 @@ export async function perplexitySearchLogic(
     model: toolResponse.modelUsed,
     usage: toolResponse.usage,
     searchResultCount: toolResponse.searchResults?.length ?? 0,
+    conversationId: toolResponse.conversationId,
   });
 
   return toolResponse;

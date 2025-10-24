@@ -45,6 +45,7 @@ const EnvSchema = z.object({
   MCP_SERVER_VERSION: z.string().optional(),
   LOG_LEVEL: z.string().default("info"),
   LOGS_DIR: z.string().default(path.join(projectRoot, "logs")),
+  CONVERSATION_LOGS_DIR: z.string().default(path.join(projectRoot, "conversation-logs")),
   NODE_ENV: z.string().default("development"),
   MCP_TRANSPORT_TYPE: z.enum(["stdio", "http"]).default("stdio"),
   MCP_HTTP_PORT: z.coerce.number().int().positive().default(3010),
@@ -107,11 +108,21 @@ if (!validatedLogsPath) {
     }
 }
 
+let validatedConversationLogsPath: string | null = ensureDirectory(env.CONVERSATION_LOGS_DIR, projectRoot, "conversation-logs");
+if (!validatedConversationLogsPath) {
+    const defaultConversationLogsDir = path.join(projectRoot, "conversation-logs");
+    validatedConversationLogsPath = ensureDirectory(defaultConversationLogsDir, projectRoot, "conversation-logs");
+    if (!validatedConversationLogsPath) {
+        console.warn("Warning: Default conversation-logs directory could not be created. Conversation persistence will be disabled.");
+    }
+}
+
 export const config = {
   mcpServerName: env.MCP_SERVER_NAME || pkg.name,
   mcpServerVersion: env.MCP_SERVER_VERSION || pkg.version,
   logLevel: env.LOG_LEVEL,
   logsPath: validatedLogsPath,
+  conversationLogsPath: validatedConversationLogsPath,
   environment: env.NODE_ENV,
   mcpTransportType: env.MCP_TRANSPORT_TYPE,
   mcpHttpPort: env.MCP_HTTP_PORT,

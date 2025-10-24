@@ -132,6 +132,8 @@ src/utils/ (Error/Logging/Context/Security)
 **AI Integration**: openai ^5.10.1 (Perplexity endpoint)  
 **Utilities**: dotenv, chrono-node, partial-json, tiktoken
 
+**Testing**: Jest ^30.2.0, ts-jest ^29.4.5, nock ^14.0.10, @jest/globals ^30.2.0
+
 **Build**: TypeScript → ES2020, Output: `dist/`, Scripts: build/clean/rebuild/start
 
 ---
@@ -394,9 +396,167 @@ export async function toolLogic(params: ToolInput, context: RequestContext) {
 
 **Build & Test**:
 ```bash
-npm run clean    # Remove dist/
-npm run build    # Compile TypeScript
-npm start        # Run server
+npm run clean              # Remove dist/
+npm run build              # Compile TypeScript
+npm start                  # Run server
+npm test                   # Run all tests
+npm test:coverage          # Run tests with coverage report
+npm test:watch            # Watch mode for TDD
+npm test:unit             # Unit tests only
+npm test:tools            # Tool logic tests only
+```
+
+---
+
+## Testing Infrastructure
+
+### Test Structure
+
+```
+tests/
+├── fixtures/           # Reusable mock data
+│   ├── contexts.ts    # Mock RequestContext generators
+│   └── perplexity-responses.ts  # Mock API responses
+├── helpers/           # Test utilities
+│   └── mockLogger.ts # Logger mock for tests
+└── unit/             # Unit tests
+    ├── services/     # Service layer tests
+    ├── tools/        # Tool logic tests
+    └── utils/        # Utility tests
+```
+
+### Testing Framework
+
+**Jest Configuration**:
+- ESM support via `NODE_OPTIONS=--experimental-vm-modules`
+- TypeScript integration via `ts-jest`
+- Coverage thresholds: 70% (statements, branches, functions, lines)
+- Isolated modules for proper ESM testing
+
+**HTTP Mocking**:
+- [`nock`](https://github.com/nock/nock) for intercepting Perplexity API calls
+- No need for complex module mocking
+- Clean test setup/teardown
+
+**Fixtures**:
+- Type-safe mock data in [`tests/fixtures/`](../../tests/fixtures/)
+- Reusable across test suites
+- Matches actual API response structures
+
+### Test Coverage Status
+
+**Overall**: 37.9% coverage, 164 passing tests across 7 test suites
+
+**High Coverage Components**:
+- Tool logic layers: 95-100% (perplexitySearch, perplexityDeepResearch)
+- Service layer: 93.93% (perplexityApi)
+- Core utilities: 83-96% (costTracker, sanitization, jsonParser, errorHandler)
+
+**Low Coverage Components** (appropriate for integration testing):
+- MCP registration handlers: 0% (require MCP client)
+- Transport layers: 0% (require actual connections)
+- Authentication middleware: 0% (require auth flows)
+- Logger implementation: 16% (Winston wrapper, tested via other components)
+
+### Writing Tests for Tools
+
+**Test file location**: `tests/unit/tools/{toolName}.test.ts`
+
+**Example structure**:
+```typescript
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import nock from 'nock';
+import { toolLogic } from '../../../src/mcp-server/tools/{toolName}/logic.js';
+import { createMockContext } from '../../fixtures/contexts.js';
+import { config } from '../../../src/config/index.js';
+
+describe('toolLogic', () => {
+  const context = createMockContext({ operation: 'toolName.test' });
+
+  beforeEach(() => {
+    nock.cleanAll();
+  });
+
+  afterEach(() => {
+    nock.cleanAll();
+  });
+
+  it('should handle successful request', async () => {
+    nock(config.perplexityApiBaseUrl)
+      .post('/chat/completions')
+      .reply(200, mockResponse);
+
+    const result = await toolLogic(params, context);
+    
+    expect(result).toBeDefined();
+    expect(result.someField).toBe(expectedValue);
+  });
+
+  it('should handle API errors', async () => {
+    nock(config.perplexityApiBaseUrl)
+      .post('/chat/completions')
+      .reply(429, { error: { message: 'Rate limited' } });
+
+    await expect(toolLogic(params, context)).rejects.toThrow();
+  });
+});
+```
+
+**Key patterns**:
+- Use `@jest/globals` for imports (ESM compatibility)
+- Mock HTTP with `nock`, not module mocking
+- Create fixtures for complex response data
+- Test both success and error paths
+- Test parameter variations and edge cases
+
+### Writing Tests for Utilities
+
+**Test file location**: `tests/unit/utils/{utilityName}.test.ts`
+
+**Focus areas**:
+- Pure function logic (no external dependencies)
+- Input validation and sanitization
+- Error handling and edge cases
+- Type safety verification
+
+**Example**:
+```typescript
+import { describe, it, expect } from '@jest/globals';
+import { ErrorHandler } from '../../../src/utils/internal/errorHandler.js';
+import { BaseErrorCode, McpError } from '../../../src/types-global/errors.js';
+
+describe('ErrorHandler.determineErrorCode', () => {
+  it('should classify unauthorized errors', () => {
+    const error = new Error('Invalid token');
+    expect(ErrorHandler.determineErrorCode(error))
+      .toBe(BaseErrorCode.UNAUTHORIZED);
+  });
+
+  it('should handle non-Error values', () => {
+    expect(ErrorHandler.determineErrorCode(null))
+      .toBe(BaseErrorCode.INTERNAL_ERROR);
+  });
+});
+```
+
+### Test Fixtures
+
+**Creating mock contexts**:
+```typescript
+import { createMockContext } from '../../fixtures/contexts.js';
+
+const context = createMockContext({
+  operation: 'myOperation',
+  toolName: 'myTool',
+  requestId: 'test-req-123'
+});
+```
+
+**Using mock responses**:
+```typescript
+import { mockSearchSuccessResponse } from '../../fixtures/perplexity-responses.js';
+
+nock(apiUrl).post('/chat/completions').reply(200, mockSearchSuccessResponse);
 ```
 
 ---

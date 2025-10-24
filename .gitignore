@@ -138,6 +138,9 @@ build/
 *.sqlite
 *.sqlite3
 
+# Conversation Persistence
+conversation-logs/
+
 # Build and Distribution
 dist/
 build/
