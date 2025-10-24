@@ -42,6 +42,7 @@ export default {
     }
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
+  globalTeardown: '<rootDir>/tests/globalTeardown.ts',
   testTimeout: 10000,
   maxWorkers: '50%',
   coverageDirectory: 'coverage',
