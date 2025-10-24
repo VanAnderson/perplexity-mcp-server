@@ -7,8 +7,11 @@
 **Problem Solved**: AI assistants lack access to current information beyond training data. This server bridges MCP-compatible clients to Perplexity AI API for real-time web search and multi-source research.
 
 **Core Tools**:
-- [`perplexity_search`](../../src/mcp-server/tools/perplexitySearch/logic.ts) - Fast search with filtering (recency, domain, academic)
-- [`perplexity_deep_research`](../../src/mcp-server/tools/perplexityDeepResearch/logic.ts) - Comprehensive multi-source investigation
+- [`perplexity_search`](../../src/mcp-server/tools/perplexitySearch/logic.ts) - Fast search with filtering (recency, domain, academic), creates conversation
+- [`perplexity_deep_research`](../../src/mcp-server/tools/perplexityDeepResearch/logic.ts) - Comprehensive multi-source investigation, creates conversation
+- [`perplexity_search_followup`](../../src/mcp-server/tools/perplexitySearchFollowup/logic.ts) - Continue existing conversation with quick search
+- [`perplexity_deep_research_followup`](../../src/mcp-server/tools/perplexityDeepResearchFollowup/logic.ts) - Continue conversation with deep research
+- [`get_conversation_history`](../../src/mcp-server/tools/getConversationHistory/logic.ts) - Retrieve full conversation history by ID
 
 ---
 
@@ -98,25 +101,44 @@ src/utils/ (Error/Logging/Context/Security)
 - [`src/mcp-server/tools/perplexitySearch/`](../../src/mcp-server/tools/perplexitySearch/)
   - Fast queries with temporal/domain/academic filtering
   - Optional reasoning transparency (`showThinking`)
+  - Automatically creates conversation with unique ID
   
 - [`src/mcp-server/tools/perplexityDeepResearch/`](../../src/mcp-server/tools/perplexityDeepResearch/)
   - Exhaustive multi-source research
   - Configurable depth (`reasoning_effort`: low/medium/high)
   - 180s timeout requirement
+  - Automatically creates conversation with unique ID
+
+- [`src/mcp-server/tools/perplexitySearchFollowup/`](../../src/mcp-server/tools/perplexitySearchFollowup/)
+  - Continue existing conversation with new search query
+  - Maintains full conversation context
+  - Cross-mode compatible (can follow deep research with search)
+
+- [`src/mcp-server/tools/perplexityDeepResearchFollowup/`](../../src/mcp-server/tools/perplexityDeepResearchFollowup/)
+  - Continue existing conversation with deep research query
+  - Maintains full conversation context
+  - Cross-mode compatible (can follow search with deep research)
+
+- [`src/mcp-server/tools/getConversationHistory/`](../../src/mcp-server/tools/getConversationHistory/)
+  - Retrieve complete conversation by ID
+  - Optional system prompt inclusion
+  - Returns metadata (created, updated, message count)
 
 ### Services
 - [`src/services/perplexityApi.ts`](../../src/services/perplexityApi.ts) - Perplexity API client, request/response handling, cost calculation integration
+- [`src/services/conversationPersistence.ts`](../../src/services/conversationPersistence.ts) - File-based conversation storage, Zod-validated schemas, conversation lifecycle management
 
 ### Utilities
 - [`src/utils/internal/errorHandler.ts`](../../src/utils/internal/errorHandler.ts) - Centralized error processing
 - [`src/utils/internal/logger.ts`](../../src/utils/internal/logger.ts) - Winston-based structured logging
 - [`src/utils/internal/requestContext.ts`](../../src/utils/internal/requestContext.ts) - Request tracing infrastructure
+- [`src/utils/conversation/conversationIdGenerator.ts`](../../src/utils/conversation/conversationIdGenerator.ts) - Conversation ID generation (yyyymmdd-timestamp format)
 - [`src/utils/perplexity-utils/costTracker.ts`](../../src/utils/perplexity-utils/costTracker.ts) - Token-based cost estimation
 - [`src/utils/security/`](../../src/utils/security/) - Sanitization, ID generation, rate limiting
 - [`src/utils/metrics/tokenCounter.ts`](../../src/utils/metrics/tokenCounter.ts) - Token counting with tiktoken
 
 ### Type Definitions
-- [`src/types-global/errors.ts`](../../src/types-global/errors.ts) - `McpError` class, `BaseErrorCode` enum
+- [`src/types-global/errors.ts`](../../src/types-global/errors.ts) - `McpError` class, `BaseErrorCode` enum (includes conversation error codes: CONVERSATION_NOT_FOUND, CONVERSATION_CORRUPTED)
 
 ---
 
@@ -153,6 +175,7 @@ src/utils/ (Error/Logging/Context/Security)
 - `OAUTH_ISSUER_URL` - OAuth issuer
 - `OAUTH_JWKS_URI` - OAuth JWKS endpoint
 - `OAUTH_AUDIENCE` - OAuth audience
+- `CONVERSATION_LOGS_DIR` - Conversation storage directory (default: conversation-logs/)
 - `PERPLEXITY_DEFAULT_MODEL` - Model name (default: sonar-reasoning-pro)
 - `PERPLEXITY_DEFAULT_EFFORT` - low | medium | high (default: medium)
 - `PERPLEXITY_API_BASE_URL` - API endpoint (default: https://api.perplexity.ai)
@@ -416,14 +439,29 @@ npm test:tools            # Tool logic tests only
 tests/
 ├── fixtures/           # Reusable mock data
 │   ├── contexts.ts    # Mock RequestContext generators
+│   ├── conversations.ts  # Mock conversation data
 │   └── perplexity-responses.ts  # Mock API responses
 ├── helpers/           # Test utilities
 │   └── mockLogger.ts # Logger mock for tests
+├── setup.ts           # Global test setup (sets test env vars)
+├── globalTeardown.ts  # Global test teardown (cleanup)
 └── unit/             # Unit tests
     ├── services/     # Service layer tests
     ├── tools/        # Tool logic tests
     └── utils/        # Utility tests
 ```
+
+### Test Isolation
+
+**Dependency Injection for Test Data**:
+- Tests set `CONVERSATION_LOGS_DIR=test-conversation-logs/` in [`tests/setup.ts`](../../tests/setup.ts)
+- Production uses `conversation-logs/` directory
+- Complete separation between test and production data
+
+**Automatic Cleanup**:
+- [`tests/globalTeardown.ts`](../../tests/globalTeardown.ts) removes entire `test-conversation-logs/` after test run
+- Simple, reliable cleanup (no timestamp tracking needed)
+- Both directories in [`.gitignore`](../../.gitignore)
 
 ### Testing Framework
 
@@ -445,11 +483,11 @@ tests/
 
 ### Test Coverage Status
 
-**Overall**: 37.9% coverage, 164 passing tests across 7 test suites
+**Overall**: ~40% coverage, 182 passing tests across 8 test suites
 
 **High Coverage Components**:
-- Tool logic layers: 95-100% (perplexitySearch, perplexityDeepResearch)
-- Service layer: 93.93% (perplexityApi)
+- Tool logic layers: 95-100% (perplexitySearch, perplexityDeepResearch, followup tools, getConversationHistory)
+- Service layer: 93-95% (perplexityApi, conversationPersistence)
 - Core utilities: 83-96% (costTracker, sanitization, jsonParser, errorHandler)
 
 **Low Coverage Components** (appropriate for integration testing):
@@ -561,22 +599,117 @@ nock(apiUrl).post('/chat/completions').reply(200, mockSearchSuccessResponse);
 
 ---
 
+## Conversation Persistence
+
+### Architecture
+
+**Storage Strategy**: File-based JSON storage with Zod schema validation
+
+**Directory Structure**:
+```
+conversation-logs/
+└── 20251024-1761346195407/          # Conversation ID (yyyymmdd-timestamp)
+    └── conversation.json             # Complete conversation history
+```
+
+**Conversation ID Format**: `yyyymmdd-[unix-milliseconds]`
+- Chronologically sortable
+- Globally unique
+- Human-readable date prefix
+
+**Service**: [`conversationPersistenceService`](../../src/services/conversationPersistence.ts)
+- `createConversation(messages, context)` - Create new conversation
+- `loadConversation(id, context)` - Load existing conversation
+- `appendMessage(id, message, context)` - Add message to conversation
+- `conversationExists(id)` - Check if conversation exists
+
+**Schemas**:
+- [`ConversationMessageSchema`](../../src/services/conversationPersistence.ts:18) - Single message (role, content)
+- [`ConversationSchema`](../../src/services/conversationPersistence.ts:26) - Complete conversation (id, timestamps, messages)
+
+### Tool Integration
+
+**Initial Tools** (create conversations):
+- `perplexity_search` - Returns conversation ID in metadata header
+- `perplexity_deep_research` - Returns conversation ID in metadata header
+
+**Follow-up Tools** (continue conversations):
+- `perplexity_search_followup` - Requires conversation ID
+- `perplexity_deep_research_followup` - Requires conversation ID
+
+**Cross-Mode Support**:
+- Can follow search with deep research (and vice versa)
+- Full conversation context maintained across mode switches
+- Example: search → deep_research_followup → search_followup
+
+**History Retrieval**:
+- `get_conversation_history` - Get full conversation by ID
+- Optional system prompt inclusion
+- Returns complete message history with metadata
+
+### Response Headers
+
+**Conversation Metadata Header** (all initial tools):
+```
+📋 Conversation Details:
+• Conversation ID: 20251024-1761346195407
+• Created: 2025-10-24T19:00:26.195Z
+• Messages: 2
+• Path: /path/to/conversation-logs/20251024-1761346195407
+
+💡 Continue this research with follow-up tools...
+```
+
+**Context Preservation Guidance** (for AI agents):
+```
+📌 Context Preservation for AI Agents:
+When conversations are summarized or context is condensed, preserve:
+1. Conversation ID: 20251024-1761346195407
+2. Topic summary
+3. Retrieval instructions: Use get_conversation_history with ID above
+```
+
+### Error Handling
+
+**Conversation-Specific Error Codes**:
+- `CONVERSATION_NOT_FOUND` - Invalid ID or conversation doesn't exist
+- `CONVERSATION_CORRUPTED` - JSON parsing or schema validation failed
+
+**Validation**:
+- ID format validation (`yyyymmdd-[timestamp]`)
+- Schema validation on read/write
+- Directory permission checks
+- Filesystem error handling
+
+---
+
 ## Project Status
 
 **Version**: 1.2.1 (Stable - Production Ready)
 
-**Maturity**: Complete implementation with comprehensive error handling, logging, authentication (JWT + OAuth 2.1), dual transport support (stdio + HTTP), cost tracking.
+**Maturity**: Complete implementation with comprehensive error handling, logging, authentication (JWT + OAuth 2.1), dual transport support (stdio + HTTP), cost tracking, conversation persistence.
 
-**Current Focus**: Maintenance, client compatibility, performance optimization for deep research.
+**Current Focus**: Maintenance, client compatibility, performance optimization for deep research, conversation continuity features.
+
+**Key Features**:
+- ✅ Conversation persistence with file-based storage
+- ✅ Follow-up query support with context maintenance
+- ✅ Cross-mode conversation transitions
+- ✅ Complete conversation history retrieval
+- ✅ Test isolation via dependency injection
+- ✅ Automated test cleanup
 
 **Key Considerations**:
 - Deep research requires 180s timeouts (some clients default to 60s)
 - Cost varies by model and research depth (automatic estimation via token usage)
 - stdio transport most universally compatible
+- Conversations stored in `conversation-logs/` (gitignored)
 - Tested with Cline and Claude Desktop
 
 **Next Potential Enhancements**:
-- Additional search filtering options
+- Conversation search/indexing
+- Conversation export formats (markdown, PDF)
+- Conversation tagging/categorization
 - Batch operations
 - Response caching layer
 - Real-time streaming support
@@ -588,10 +721,19 @@ nock(apiUrl).post('/chat/completions').reply(200, mockSearchSuccessResponse);
 
 This Memory Bank is your complete guide to the Perplexity MCP Server codebase. Key principles:
 
-✓ **Logic throws, Handler catches** - Never deviate  
-✓ **RequestContext everywhere** - Full traceability  
-✓ **Zod schemas drive types** - Runtime + compile-time safety  
-✓ **Three-file tool pattern** - Consistent structure  
+✓ **Logic throws, Handler catches** - Never deviate
+✓ **RequestContext everywhere** - Full traceability
+✓ **Zod schemas drive types** - Runtime + compile-time safety
+✓ **Three-file tool pattern** - Consistent structure
 ✓ **Centralized error handling** - Single point of control
+✓ **Conversation persistence** - All research trackable and continuable
+✓ **Test isolation** - Dependency injection keeps test/prod data separate
 
 When working on this codebase, always reference architectural principles first, follow established patterns, and maintain the strict separation of concerns that makes this system reliable and maintainable.
+
+**Recent Major Additions**:
+- Conversation persistence with 5 tools (search, deep research, 2 followups, history)
+- File-based storage with Zod validation
+- Cross-mode conversation support
+- Test isolation via `CONVERSATION_LOGS_DIR` environment variable
+- Automated test cleanup with `globalTeardown`
