@@ -20,7 +20,7 @@ import { McpError } from "../../../types-global/errors.js";
 export const registerPerplexityDeepResearchTool = async (server: McpServer): Promise<void> => {
   const toolName = "perplexity_deep_research";
   const toolDescription =
-    "Performs an exhaustive, multi-source research query using the Perplexity Deep Research API. This tool is for complex topics requiring in-depth analysis and report generation, not for simple questions. Use the `reasoning_effort` parameter to control the depth. (Ex. 'Create a detailed document on utilizing '@modelcontextprotocol/sdk' v1.15.0')";
+    "Performs exhaustive, multi-source research using the Perplexity Deep Research API for complex topics requiring comprehensive analysis and professional report generation. **CRITICAL INSTRUCTION: For complex research, provide your query as a STRUCTURED MARKDOWN DOCUMENT** with clear sections such as: '# Research Objective', '# Background Context', '# Specific Questions', '# Requirements', and '# Intended Use'. The research agent has ZERO access to your conversation history or context - you must include EVERYTHING relevant in the query. Even simple queries must be complete sentences with full context. NEVER use fragments. ALWAYS provide complete, self-contained research briefs. Use `reasoning_effort` ('low', 'medium', 'high') to control depth and cost.";
 
   server.registerTool(
     toolName,

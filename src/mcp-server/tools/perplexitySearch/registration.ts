@@ -20,7 +20,7 @@ import { McpError } from "../../../types-global/errors.js";
 export const registerPerplexitySearchTool = async (server: McpServer): Promise<void> => {
   const toolName = "perplexity_search";
   const toolDescription =
-    "Performs a search-augmented query using the Perplexity Search API. `perplexity_search` takes a natural language query, performs a web search, and uses an LLM to synthesize an answer. Use concise, specific queries for best results; include version information if applicable. Supports filtering by recency, date, domain, and search mode (web or academic). '(Ex. 'What are the latest advancements in quantum computing?')";
+    "Performs a search-augmented query using the Perplexity Search API. **CRITICAL INSTRUCTION: You MUST write queries using COMPLETE, GRAMMATICALLY CORRECT SENTENCES with FULL CONTEXT.** The research agent has NO access to your conversation history or prior context. Every query must be self-contained and include ALL relevant information: what you're researching, why, specific technologies/versions, constraints, and desired outcomes. NEVER use fragments like 'latest updates' or 'how to use this'. ALWAYS provide complete context like 'What are the latest security best practices for implementing JWT authentication in Node.js Express applications as of 2025?' Supports filtering by recency, date, domain, and search mode (web or academic).";
 
   server.registerTool(
     toolName,

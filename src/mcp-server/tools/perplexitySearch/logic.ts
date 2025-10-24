@@ -12,7 +12,7 @@ import { logger, RequestContext } from '../../../utils/index.js';
 
 // 1. DEFINE Zod input and output schemas.
 export const PerplexitySearchInputSchema = z.object({
-  query: z.string().min(1).describe("The natural language query for Perplexity's search-augmented generation."),
+  query: z.string().min(1).describe("The search query for Perplexity's search-augmented generation. **CRITICAL: Write COMPLETE, GRAMMATICALLY CORRECT SENTENCES with full context.** This research agent has NO access to your conversation history or context. You must provide ALL relevant information in the query itself, including: what you're trying to accomplish, any version numbers, specific technologies, constraints, or requirements. BAD: 'latest quantum computing' or 'how to use SDK'. GOOD: 'What are the latest advancements in quantum computing as of 2025, particularly in error correction and scalability?' or 'How do I implement authentication middleware using the @modelcontextprotocol/sdk version 1.15.0 in a TypeScript Node.js application?'"),
   return_related_questions: z.boolean().optional().default(false).describe("If true, the model will suggest related questions in its response. Defaults to false."),
   search_recency_filter: z.string().optional().describe("Restricts the web search to a specific timeframe. Accepts 'day', 'week', 'month', 'year'."),
   search_domain_filter: z.array(z.string()).optional().describe("A list of domains to restrict or exclude from the search. (e.g. ['wikipedia.org', 'arxiv.org'])."),
@@ -20,7 +20,7 @@ export const PerplexitySearchInputSchema = z.object({
   search_before_date_filter: z.string().optional().describe("Filters search results to content published before a specific date (MM/DD/YYYY)."),
   search_mode: z.enum(['web', 'academic']).optional().describe("Set to 'academic' to prioritize scholarly sources."),
   showThinking: z.boolean().optional().default(false).describe("If true, includes the model's internal reasoning in the response. Defaults to false."),
-}).describe("Performs a search-augmented query using the Perplexity Search API. `perplexity_search` takes a natural language query, performs a web search, and uses an LLM to synthesize an answer. Use concise, specific queries for best results; include version information if applicable. Supports filtering by recency, date, domain, and search mode (web or academic). '(Ex. 'What are the latest advancements in quantum computing?')");
+}).describe("Performs a search-augmented query using the Perplexity Search API. **IMPORTANT: Always use COMPLETE SENTENCES with FULL CONTEXT.** The research agent has NO access to your conversation history. Include all relevant details: technologies, versions, goals, constraints. For complex topics, provide a well-structured query with clear objectives. Supports filtering by recency, date, domain, and search mode (web or academic).");
 
 const SearchResultSchema = z.object({
     title: z.string().describe("The title of the search result."),
