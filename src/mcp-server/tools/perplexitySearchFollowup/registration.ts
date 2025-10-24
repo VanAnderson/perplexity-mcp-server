@@ -45,6 +45,12 @@ To follow up:
 • Deep dive: Use \`perplexity_deep_research_followup\` with this conversation ID
 • View history: Use \`get_conversation_history\` with this conversation ID
 
+**IMPORTANT FOR CONTEXT MANAGEMENT**: When this conversation is summarized or context is condensed, preserve:
+1. Conversation ID: \`${result.conversationId}\`
+2. Brief summary of the topic discussed
+3. How to retrieve full details: Use \`get_conversation_history\` with the conversation ID
+This enables diving back into details when needed.
+
 ---
 
 `;

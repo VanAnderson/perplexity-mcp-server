@@ -57,6 +57,25 @@ export const registerPerplexitySearchTool = async (server: McpServer): Promise<v
         }
 
         // --- Construct Final Response ---
+        const conversationHeader = `🆕 **New Conversation Started**
+Conversation ID: \`${result.conversationId}\`
+Location: \`${result.conversationPath}\`
+
+To continue this conversation:
+• Quick search: Use \`perplexity_search_followup\` with this conversation ID
+• Deep dive: Use \`perplexity_deep_research_followup\` with this conversation ID
+• View history: Use \`get_conversation_history\` with this conversation ID
+
+**IMPORTANT FOR CONTEXT MANAGEMENT**: When this conversation is summarized or context is condensed, preserve:
+1. Conversation ID: \`${result.conversationId}\`
+2. Brief summary of the topic discussed
+3. How to retrieve full details: Use \`get_conversation_history\` with the conversation ID
+This enables diving back into details when needed.
+
+---
+
+`;
+
         let responseText = mainContent;
         if (params.showThinking && thinkingContent) {
           responseText = `--- Thinking ---\n${thinkingContent}\n\n--- Answer ---\n${mainContent}`;
@@ -69,7 +88,7 @@ export const registerPerplexitySearchTool = async (server: McpServer): Promise<v
 
         return {
           structuredContent: result,
-          content: [{ type: "text", text: responseText }],
+          content: [{ type: "text", text: conversationHeader + responseText }],
         };
       } catch (error) {
         const mcpError = ErrorHandler.handleError(error, {
