@@ -140,6 +140,7 @@ build/
 
 # Conversation Persistence
 conversation-logs/
+test-conversation-logs/
 
 # Build and Distribution
 dist/
