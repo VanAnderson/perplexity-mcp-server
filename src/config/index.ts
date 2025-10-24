@@ -4,8 +4,6 @@ import path, { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { z } from "zod";
 
-dotenv.config();
-
 const findProjectRoot = (startDir: string): string => {
   let currentDir = startDir;
   while (true) {
@@ -25,10 +23,22 @@ let projectRoot: string;
 try {
   const currentModuleDir = dirname(fileURLToPath(import.meta.url));
   projectRoot = findProjectRoot(currentModuleDir);
+  console.log(`[Config] Project root detected: ${projectRoot}`);
 } catch (error: any) {
   console.error(`FATAL: Error determining project root: ${error.message}`);
   projectRoot = process.cwd();
   console.warn(`Warning: Using process.cwd() (${projectRoot}) as fallback project root.`);
+}
+
+// Load .env from the project root, not the current working directory
+const envPath = join(projectRoot, ".env");
+if (existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+  console.log(`[Config] Loaded .env from: ${envPath}`);
+} else {
+  console.warn(`[Config] No .env file found at: ${envPath}`);
+  // Still call config() to pick up any system environment variables
+  dotenv.config();
 }
 
 const pkgPath = join(projectRoot, "package.json");
@@ -74,13 +84,12 @@ const env = parsedEnv.success ? parsedEnv.data : EnvSchema.parse({});
 
 const ensureDirectory = (dirPath: string, rootDir: string, dirName: string): string | null => {
   const resolvedDirPath = path.isAbsolute(dirPath) ? dirPath : path.resolve(rootDir, dirPath);
-  if (!resolvedDirPath.startsWith(rootDir + path.sep) && resolvedDirPath !== rootDir) {
-    console.error(`Error: ${dirName} path "${dirPath}" resolves to "${resolvedDirPath}", which is outside the project boundary "${rootDir}".`);
-    return null;
-  }
+  // Remove project boundary check - allow directories to be created anywhere accessible
+  // This enables the MCP server to work when installed globally or run from different working directories
   if (!existsSync(resolvedDirPath)) {
     try {
       mkdirSync(resolvedDirPath, { recursive: true });
+      console.log(`[Config] Created ${dirName} directory: ${resolvedDirPath}`);
     } catch (err: unknown) {
       console.error(`Error creating ${dirName} directory at ${resolvedDirPath}: ${err instanceof Error ? err.message : String(err)}`);
       return null;
