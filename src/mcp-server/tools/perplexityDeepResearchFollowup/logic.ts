@@ -5,12 +5,15 @@
  */
 
 import { z } from 'zod';
+import { config } from '../../../config/index.js';
 import { 
   perplexityApiService, 
   conversationPersistenceService,
-  PerplexityChatCompletionRequest 
+  PerplexityChatCompletionRequest,
+  jobQueueService,
 } from '../../../services/index.js';
 import { BaseErrorCode, McpError } from '../../../types-global/errors.js';
+import { JobData } from '../../../types-global/job-status.js';
 import { logger, RequestContext } from '../../../utils/index.js';
 import { PerplexitySearchResponseSchema } from '../perplexitySearch/logic.js';
 
@@ -45,6 +48,16 @@ export async function perplexityDeepResearchFollowupLogic(
     toolInput: params 
   });
 
+  // Check if conversation has an in-progress job
+  const jobStatus = conversationPersistenceService.getConversationStatus(params.conversationId, context);
+  if (jobStatus && jobStatus.status === 'in_progress') {
+    throw new McpError(
+      BaseErrorCode.VALIDATION_ERROR,
+      `Cannot perform followup on conversation ${params.conversationId} because it has an in-progress job. The previous query is still being processed. Please wait for it to complete, then try your followup again. Use get_conversation_history to check the status.`,
+      { ...context, conversationId: params.conversationId, jobStatus: jobStatus.status }
+    );
+  }
+
   // Load existing conversation
   const conversation = await conversationPersistenceService.loadConversation(
     params.conversationId,
@@ -56,6 +69,73 @@ export async function perplexityDeepResearchFollowupLogic(
     conversationId: params.conversationId,
     messageCount: conversation.messageCount,
   });
+
+  // Check if async mode is enabled for deep research followups
+  if (config.perplexityEnableAsyncDeepResearch) {
+    logger.info("Async mode enabled for deep research followup, queueing job", { ...context, conversationId: params.conversationId });
+
+    // Append user message to conversation
+    await conversationPersistenceService.appendToConversation(
+      params.conversationId,
+      { role: 'user', content: params.query },
+      context
+    );
+
+    // Create job data for followup
+    const jobData: JobData = {
+      conversationId: params.conversationId,
+      toolName: 'perplexity_deep_research_followup',
+      params: {
+        query: params.query,
+        reasoning_effort: params.reasoning_effort,
+      },
+      createdAt: new Date().toISOString(),
+      attempts: 0,
+      maxAttempts: 3,
+      priority: 0,
+    };
+
+    // Enqueue the job
+    jobQueueService.enqueueJob(jobData);
+
+    // Update status to pending
+    const existingStatus = conversationPersistenceService.getConversationStatus(params.conversationId, context);
+    if (existingStatus) {
+      existingStatus.status = 'pending' as any;
+      existingStatus.updatedAt = new Date().toISOString();
+      conversationPersistenceService.updateConversationStatus(params.conversationId, existingStatus, context);
+    }
+
+    // Return immediately with instructions
+    const toolResponse: PerplexityDeepResearchFollowupResponse = {
+      rawResultText: `Deep research followup query has been queued for background processing.
+
+To check the status and retrieve results when complete:
+1. Use \`get_conversation_history\` with conversation ID: \`${params.conversationId}\`
+2. The status will show:
+   - "pending": Waiting to start
+   - "in_progress": Currently processing
+   - "completed": Results ready (conversation will contain the full research report)
+   - "failed": An error occurred (details will be in the status)
+
+You can run multiple deep research queries concurrently and poll each one independently.`,
+      responseId: 'queued',
+      modelUsed: 'sonar-deep-research',
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      searchResults: [],
+      conversationId: params.conversationId,
+      conversationPath: conversationPersistenceService.getConversationPath(params.conversationId),
+    };
+
+    logger.info("Deep research followup job queued successfully", {
+      ...context,
+      conversationId: params.conversationId,
+    });
+
+    return toolResponse;
+  }
+
+  // Blocking mode (default) - continue with existing behavior
 
   // Build request with full conversation history + new query
   const requestPayload: PerplexityChatCompletionRequest = {

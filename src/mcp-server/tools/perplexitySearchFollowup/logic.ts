@@ -59,6 +59,16 @@ export async function perplexitySearchFollowupLogic(
     toolInput: params 
   });
 
+  // Check if conversation has an in-progress job
+  const jobStatus = conversationPersistenceService.getConversationStatus(params.conversationId, context);
+  if (jobStatus && jobStatus.status === 'in_progress') {
+    throw new McpError(
+      BaseErrorCode.VALIDATION_ERROR,
+      `Cannot perform followup on conversation ${params.conversationId} because it has an in-progress job. The previous query is still being processed. Please wait for it to complete, then try your followup again. Use get_conversation_history to check the status.`,
+      { ...context, conversationId: params.conversationId, jobStatus: jobStatus.status }
+    );
+  }
+
   // Load existing conversation
   const conversation = await conversationPersistenceService.loadConversation(
     params.conversationId,

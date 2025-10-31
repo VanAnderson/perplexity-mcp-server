@@ -122,6 +122,9 @@ class BackgroundWorkerService {
       case 'perplexity_deep_research':
         await this.executeDeepResearchJob(job);
         break;
+      case 'perplexity_deep_research_followup':
+        await this.executeDeepResearchFollowupJob(job);
+        break;
       default:
         logger.error('Unknown tool name for job', {
           ...context,
@@ -246,6 +249,125 @@ class BackgroundWorkerService {
 
     } catch (error) {
       logger.error('Deep research job failed', {
+        ...context,
+        conversationId: job.conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      // Get current status
+      let status = jobQueueService.getJobStatus(job.conversationId);
+      if (status) {
+        // Create error object
+        const jobError: JobError = {
+          code: error instanceof McpError ? error.code : BaseErrorCode.INTERNAL_ERROR,
+          message: error instanceof Error ? error.message : String(error),
+          details: error instanceof McpError ? error.details : {},
+          stackTrace: error instanceof Error ? error.stack : undefined,
+        };
+
+        // Mark as failed
+        status = markStatusFailed(status, jobError);
+        jobQueueService.updateJobStatus(job.conversationId, status);
+        conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+      }
+
+      // Remove job from queue (don't retry for now)
+      jobQueueService.removeJob(job.conversationId);
+    }
+  }
+
+  /**
+   * Executes a deep research followup job with incremental streaming
+   */
+  private async executeDeepResearchFollowupJob(job: JobData): Promise<void> {
+    const context = requestContextService.createRequestContext({
+      toolName: job.toolName,
+      conversationId: job.conversationId,
+    });
+
+    const { query, reasoning_effort } = job.params;
+
+    try {
+      // Get current status
+      let status = jobQueueService.getJobStatus(job.conversationId);
+      if (!status) {
+        throw new Error('Job status not found');
+      }
+
+      // Update status to in_progress
+      status = updateStatusWithProgress(status, 'Starting deep research followup query...', 0);
+      jobQueueService.updateJobStatus(job.conversationId, status);
+      conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+
+      // Load existing conversation
+      const conversation = await conversationPersistenceService.loadConversation(
+        job.conversationId,
+        context
+      );
+
+      // Prepare API request with full conversation history
+      const requestPayload = {
+        model: 'sonar-deep-research' as const,
+        messages: conversation.messages, // Use existing conversation messages (user message already appended)
+        stream: false,
+        reasoning_effort: reasoning_effort || config.perplexityDefaultEffort,
+      };
+
+      logger.info('Calling Perplexity API for deep research followup', { ...context });
+
+      // Update progress
+      status = updateStatusWithProgress(status, 'Querying Perplexity API...', 25);
+      jobQueueService.updateJobStatus(job.conversationId, status);
+      conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+
+      // Make API call
+      const response = await perplexityApiService.chatCompletion(requestPayload, context);
+
+      const rawResultText = response.choices?.[0]?.message?.content;
+      
+      if (!rawResultText) {
+        throw new McpError(
+          BaseErrorCode.SERVICE_UNAVAILABLE,
+          'Perplexity API returned an empty response.',
+          { responseId: response.id }
+        );
+      }
+
+      // Update progress
+      status = updateStatusWithProgress(status, 'Received response, saving results...', 75);
+      jobQueueService.updateJobStatus(job.conversationId, status);
+      conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+
+      // Append the assistant's response to the conversation
+      await conversationPersistenceService.appendToConversation(
+        job.conversationId,
+        { role: 'assistant', content: rawResultText },
+        context,
+        false
+      );
+
+      // Update progress
+      status = updateStatusWithProgress(status, 'Finalizing...', 90);
+      jobQueueService.updateJobStatus(job.conversationId, status);
+      conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+
+      // Mark as completed
+      status = markStatusCompleted(status);
+      jobQueueService.updateJobStatus(job.conversationId, status);
+      conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+
+      // Remove job from queue
+      jobQueueService.removeJob(job.conversationId);
+
+      logger.info('Deep research followup job completed successfully', {
+        ...context,
+        conversationId: job.conversationId,
+        responseId: response.id,
+        model: response.model,
+      });
+
+    } catch (error) {
+      logger.error('Deep research followup job failed', {
         ...context,
         conversationId: job.conversationId,
         error: error instanceof Error ? error.message : String(error),
