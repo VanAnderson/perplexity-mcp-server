@@ -9,6 +9,7 @@
 export {
   perplexityApiService,
   PerplexityChatCompletionRequestSchema,
+  UsageSchema,
   type PerplexityChatCompletionRequest,
   type PerplexityChatCompletionResponse,
 } from './perplexityApi.js'; // Ensure .js extension for ES module compatibility

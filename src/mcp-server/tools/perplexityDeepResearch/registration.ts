@@ -12,6 +12,7 @@ import {
   PerplexityDeepResearchResponseSchema,
 } from "./logic.js";
 import { McpError } from "../../../types-global/errors.js";
+import { getSecurityDisclaimer } from "../shared-constants.js";
 
 /**
  * Registers the 'perplexity_deep_research' tool with the MCP server instance.
@@ -19,8 +20,9 @@ import { McpError } from "../../../types-global/errors.js";
  */
 export const registerPerplexityDeepResearchTool = async (server: McpServer): Promise<void> => {
   const toolName = "perplexity_deep_research";
+  const securityDisclaimer = getSecurityDisclaimer();
   const toolDescription =
-    "Performs exhaustive, multi-source research using the Perplexity Deep Research API for complex topics requiring comprehensive analysis and professional report generation. **CRITICAL INSTRUCTION: For complex research, provide your query as a STRUCTURED MARKDOWN DOCUMENT** with clear sections such as: '# Research Objective', '# Background Context', '# Specific Questions', '# Requirements', and '# Intended Use'. The research agent has ZERO access to your conversation history or context - you must include EVERYTHING relevant in the query. Even simple queries must be complete sentences with full context. NEVER use fragments. ALWAYS provide complete, self-contained research briefs. Use `reasoning_effort` ('low', 'medium', 'high') to control depth and cost.";
+    `Performs exhaustive, multi-source research using the Perplexity Deep Research API for complex topics requiring comprehensive analysis and professional report generation. **CRITICAL INSTRUCTION: For complex research, provide your query as a STRUCTURED MARKDOWN DOCUMENT** with clear sections such as: '# Research Objective', '# Background Context', '# Specific Questions', '# Requirements', and '# Intended Use'. The research agent has ZERO access to your conversation history or context - you must include EVERYTHING relevant in the query. Even simple queries must be complete sentences with full context. NEVER use fragments. ALWAYS provide complete, self-contained research briefs. Use \`reasoning_effort\` ('low', 'medium', 'high') to control depth and cost.${securityDisclaimer ? ' ' + securityDisclaimer : ''}`;
 
   server.registerTool(
     toolName,
@@ -28,7 +30,6 @@ export const registerPerplexityDeepResearchTool = async (server: McpServer): Pro
       title: "Perplexity Deep Research",
       description: toolDescription,
       inputSchema: PerplexityDeepResearchInputSchema.shape,
-      outputSchema: PerplexityDeepResearchResponseSchema.shape,
       annotations: {
         readOnlyHint: false,
         openWorldHint: true,

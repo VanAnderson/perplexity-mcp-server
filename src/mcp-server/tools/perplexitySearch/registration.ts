@@ -12,6 +12,7 @@ import {
   PerplexitySearchResponseSchema,
 } from "./logic.js";
 import { McpError } from "../../../types-global/errors.js";
+import { getSecurityDisclaimer } from "../shared-constants.js";
 
 /**
  * Registers the 'perplexity_search' tool with the MCP server instance.
@@ -19,8 +20,9 @@ import { McpError } from "../../../types-global/errors.js";
  */
 export const registerPerplexitySearchTool = async (server: McpServer): Promise<void> => {
   const toolName = "perplexity_search";
+  const securityDisclaimer = getSecurityDisclaimer();
   const toolDescription =
-    "Performs a search-augmented query using the Perplexity Search API. **CRITICAL INSTRUCTION: You MUST write queries using COMPLETE, GRAMMATICALLY CORRECT SENTENCES with FULL CONTEXT.** The research agent has NO access to your conversation history or prior context. Every query must be self-contained and include ALL relevant information: what you're researching, why, specific technologies/versions, constraints, and desired outcomes. NEVER use fragments like 'latest updates' or 'how to use this'. ALWAYS provide complete context like 'What are the latest security best practices for implementing JWT authentication in Node.js Express applications as of 2025?' Supports filtering by recency, date, domain, and search mode (web or academic).";
+    `Performs a search-augmented query using the Perplexity Search API. **CRITICAL INSTRUCTION: You MUST write queries using COMPLETE, GRAMMATICALLY CORRECT SENTENCES with FULL CONTEXT.** The research agent has NO access to your conversation history or prior context. Every query must be self-contained and include ALL relevant information: what you're researching, why, specific technologies/versions, constraints, and desired outcomes. NEVER use fragments like 'latest updates' or 'how to use this'. ALWAYS provide complete context like 'What are the latest security best practices for implementing JWT authentication in Node.js Express applications as of 2025?' Supports filtering by recency, date, domain, and search mode (web or academic).${securityDisclaimer ? ' ' + securityDisclaimer : ''}`;
 
   server.registerTool(
     toolName,
@@ -28,7 +30,6 @@ export const registerPerplexitySearchTool = async (server: McpServer): Promise<v
       title: "Perplexity Search",
       description: toolDescription,
       inputSchema: PerplexitySearchInputSchema.shape,
-      outputSchema: PerplexitySearchResponseSchema.shape,
       annotations: {
         readOnlyHint: false,
         openWorldHint: true,
