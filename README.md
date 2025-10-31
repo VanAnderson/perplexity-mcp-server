@@ -153,14 +153,55 @@ For a detailed file tree, run `npm run tree` or see [docs/tree.md](docs/tree.md)
 
 ## Tools
 
-The Perplexity MCP Server provides two primary tools for interacting with the Perplexity API.
+The Perplexity MCP Server provides comprehensive tools for search, research, and conversation management.
+
+### Query Tools
 
 | Tool Name                  | Description                                          | Key Arguments                                                                               |
 | :------------------------- | :--------------------------------------------------- | :------------------------------------------------------------------------------------------ |
 | `perplexity_search`        | Performs a fast, search-augmented query.             | `query`, `search_recency_filter?`, `search_domain_filter?`, `search_mode?`, `showThinking?` |
 | `perplexity_deep_research` | Conducts an exhaustive, multi-source research query. | `query`, `reasoning_effort?`                                                                |
+| `perplexity_search_followup` | Continues an existing conversation with new search query. | `conversationId`, `query`, search filters                                                   |
+| `perplexity_deep_research_followup` | Continues conversation with new deep research query. | `conversationId`, `query`, `reasoning_effort?`                                              |
+
+### Conversation Management Tools
+
+| Tool Name                  | Description                                          | Key Arguments                                                                               |
+| :------------------------- | :--------------------------------------------------- | :------------------------------------------------------------------------------------------ |
+| `get_conversation_history` | Retrieves a single conversation with status information. | `conversationId`, `includeSystemPrompt?`                                                    |
+| `get_conversation_histories` | Retrieves multiple conversations in a single batch operation. | `conversationIds[]`, `includeSystemPrompt?`                                                 |
+| `await_conversation_histories` | Waits for async jobs to complete, then returns all conversations. (Async mode only) | `conversationIds[]`, `includeSystemPrompt?`, `pollingIntervalMs?`                          |
 
 _Note: All tools support comprehensive error handling and return structured JSON responses._
+
+#### Batch Conversation Retrieval
+
+The batch retrieval tools (`get_conversation_histories` and `await_conversation_histories`) enable efficient monitoring of multiple async deep research queries:
+
+**`get_conversation_histories`** - Returns immediate snapshot of all requested conversations:
+- Returns object keyed by `conversationId` for easy lookup
+- Each entry includes conversation data (if available), job status (if async), and error info (if failed/not found)
+- Useful for checking status of multiple jobs without waiting
+
+**`await_conversation_histories`** - Waits for completion before returning (async mode only):
+- Polls every 2 seconds until all jobs reach terminal state (completed/failed)
+- No internal timeout - waits indefinitely until MCP client times out
+- If timeout occurs, simply re-run the tool to resume waiting
+- Ideal when you need all results before proceeding
+
+**Example Use Case:**
+```javascript
+// Submit 3 deep research queries
+const ids = [id1, id2, id3];
+
+// Check status immediately
+get_conversation_histories({ conversationIds: ids })
+// Returns: { id1: {status: "in_progress"}, id2: {status: "pending"}, id3: {status: "completed", conversation: {...}} }
+
+// Wait for all to complete
+await_conversation_histories({ conversationIds: ids })
+// Blocks until all complete, then returns full conversation data for all
+```
 
 ## Development
 

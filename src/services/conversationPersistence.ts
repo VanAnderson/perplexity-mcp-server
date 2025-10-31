@@ -515,6 +515,92 @@ class ConversationPersistenceService {
       );
     }
   }
+
+  /**
+   * Retrieves multiple conversations with their status information in a single operation.
+   * Efficiently batch-reads conversation and status files.
+   * @param conversationIds Array of conversation IDs to retrieve
+   * @param context Request context for logging
+   * @returns Map of conversationId to {conversation, status, error}
+   */
+  async getMultipleConversationsWithStatus(
+    conversationIds: string[],
+    context: RequestContext
+  ): Promise<Map<string, {
+    conversation?: Conversation;
+    status?: ConversationStatus;
+    error?: { code: string; message: string };
+  }>> {
+    const results = new Map();
+
+    logger.debug('Retrieving multiple conversations', {
+      ...context,
+      conversationIds,
+      count: conversationIds.length,
+    });
+
+    for (const conversationId of conversationIds) {
+      try {
+        // Validate conversation ID format
+        if (!isValidConversationId(conversationId)) {
+          results.set(conversationId, {
+            error: {
+              code: 'INVALID_ID',
+              message: `Invalid conversation ID format: ${conversationId}`,
+            },
+          });
+          continue;
+        }
+
+        const conversationDir = this.getConversationDir(conversationId);
+
+        // Check if conversation directory exists
+        if (!existsSync(conversationDir)) {
+          results.set(conversationId, {
+            error: {
+              code: 'NOT_FOUND',
+              message: `Conversation not found: ${conversationId}`,
+            },
+          });
+          continue;
+        }
+
+        // Try to read conversation data
+        const conversation = await this.loadConversation(conversationId, context);
+        
+        // Try to read status if it exists
+        const status = this.getConversationStatus(conversationId, context);
+
+        results.set(conversationId, {
+          conversation: conversation || undefined,
+          status: status || undefined,
+        });
+      } catch (error) {
+        // Handle any unexpected errors
+        logger.error('Error retrieving conversation in batch', {
+          ...context,
+          conversationId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        results.set(conversationId, {
+          error: {
+            code: 'RETRIEVAL_ERROR',
+            message: `Failed to retrieve conversation: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        });
+      }
+    }
+
+    logger.debug('Batch conversation retrieval completed', {
+      ...context,
+      totalRequested: conversationIds.length,
+      successCount: Array.from(results.values()).filter(r => r.conversation).length,
+      errorCount: Array.from(results.values()).filter(r => r.error).length,
+    });
+
+    return results;
+  }
 }
 
 /**

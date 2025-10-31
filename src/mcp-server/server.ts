@@ -15,7 +15,9 @@ import { BaseErrorCode } from "../types-global/errors.js";
 import { ErrorHandler, logger, requestContextService } from "../utils/index.js";
 
 // Import registration functions for all tools (alphabetized)
+import { registerAwaitConversationHistories } from "./tools/awaitConversationHistories/index.js";
 import { registerGetConversationHistory } from "./tools/getConversationHistory/index.js";
+import { registerGetConversationHistories } from "./tools/getConversationHistories/index.js";
 import { registerPerplexityDeepResearchFollowup } from "./tools/perplexityDeepResearchFollowup/index.js";
 import { registerPerplexityDeepResearchTool } from "./tools/perplexityDeepResearch/index.js";
 import { registerPerplexitySearchFollowup } from "./tools/perplexitySearchFollowup/index.js";
@@ -56,11 +58,21 @@ async function createMcpServerInstance(): Promise<McpServer> {
   await ErrorHandler.tryCatch(
     async () => {
       logger.debug("Registering tools...", context);
-      await registerPerplexityDeepResearchTool(server);
+      // Core query tools
       await registerPerplexitySearchTool(server);
+      await registerPerplexityDeepResearchTool(server);
+      
+      // Follow-up tools
       await registerPerplexitySearchFollowup(server);
       await registerPerplexityDeepResearchFollowup(server);
+      
+      // Conversation retrieval tools
       await registerGetConversationHistory(server);
+      await registerGetConversationHistories(server);
+      
+      // Async-only tools (conditionally registered based on config)
+      await registerAwaitConversationHistories(server);
+      
       logger.info("Tools registered successfully", context);
     },
     {
