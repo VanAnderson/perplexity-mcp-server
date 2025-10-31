@@ -72,6 +72,7 @@ const EnvSchema = z.object({
   PERPLEXITY_API_BASE_URL: z.string().url().default('https://api.perplexity.ai'),
   PERPLEXITY_POLLING_INTERVAL_MS: z.coerce.number().int().positive().default(2000),
   PERPLEXITY_POLLING_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  PERPLEXITY_ENABLE_SECURITY_DISCLAIMER: z.string().optional().transform((val) => val === "true" || val === "1"),
 });
 
 const parsedEnv = EnvSchema.safeParse(process.env);
@@ -151,6 +152,7 @@ export const config = {
   perplexityApiBaseUrl: env.PERPLEXITY_API_BASE_URL,
   perplexityPollingIntervalMs: env.PERPLEXITY_POLLING_INTERVAL_MS,
   perplexityPollingTimeoutMs: env.PERPLEXITY_POLLING_TIMEOUT_MS,
+  perplexityEnableSecurityDisclaimer: env.PERPLEXITY_ENABLE_SECURITY_DISCLAIMER || false,
 };
 
 if (!config.perplexityApiKey) {

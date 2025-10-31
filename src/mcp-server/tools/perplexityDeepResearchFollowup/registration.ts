@@ -13,18 +13,19 @@ import {
   PerplexityDeepResearchFollowupInputSchema,
   PerplexityDeepResearchFollowupResponseSchema,
 } from "./logic.js";
-import { PERPLEXITY_PRIVACY_DISCLAIMER } from "../shared-constants.js";
+import { getSecurityDisclaimer } from "../shared-constants.js";
 
 /**
  * Registers the perplexity_deep_research_followup tool with the MCP server.
  * @param server - The MCP server instance
  */
 export const registerPerplexityDeepResearchFollowup = async (server: McpServer): Promise<void> => {
+  const securityDisclaimer = getSecurityDisclaimer();
   server.registerTool(
     "perplexity_deep_research_followup",
     {
       title: "Perplexity Deep Research Follow-up",
-      description: `Follow up on an existing Perplexity conversation with a deep research query. This tool continues a conversation started by perplexity_search or perplexity_deep_research, performing exhaustive multi-source research while maintaining full context. Cross-mode support allows switching between quick search and deep research. ${PERPLEXITY_PRIVACY_DISCLAIMER}`,
+      description: `Follow up on an existing Perplexity conversation with a deep research query. This tool continues a conversation started by perplexity_search or perplexity_deep_research, performing exhaustive multi-source research while maintaining full context. Cross-mode support allows switching between quick search and deep research.${securityDisclaimer ? ' ' + securityDisclaimer : ''}`,
       inputSchema: PerplexityDeepResearchFollowupInputSchema.shape,
     },
     async (params: PerplexityDeepResearchFollowupInput) => {

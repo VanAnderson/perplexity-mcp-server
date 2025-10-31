@@ -10,7 +10,8 @@
         "LOG_LEVEL": "info", // Optional: debug, info, warn, error (defaults to info)
         "NODE_ENV": "development", // Optional: development, production (defaults to development)
         "PERPLEXITY_DEFAULT_MODEL": "sonar-reasoning", // Optional: Defaults to sonar-reasoning
-        "PERPLEXITY_DEFAULT_SEARCH_CONTEXT": "high" // Optional: low, medium, high (defaults to high)
+        "PERPLEXITY_DEFAULT_SEARCH_CONTEXT": "high", // Optional: low, medium, high (defaults to high)
+        "PERPLEXITY_ENABLE_SECURITY_DISCLAIMER": "true" // Optional: Set to "true" or "1" to enable security warnings for sensitive work contexts (defaults to false)
       }
     }
     // Add configurations for other MCP servers here if needed
