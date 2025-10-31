@@ -13,6 +13,7 @@ import {
   PerplexitySearchFollowupInputSchema,
   PerplexitySearchFollowupResponseSchema,
 } from "./logic.js";
+import { PERPLEXITY_PRIVACY_DISCLAIMER } from "../shared-constants.js";
 
 /**
  * Registers the perplexity_search_followup tool with the MCP server.
@@ -23,7 +24,7 @@ export const registerPerplexitySearchFollowup = async (server: McpServer): Promi
     "perplexity_search_followup",
     {
       title: "Perplexity Search Follow-up",
-      description: "Follow up on an existing Perplexity conversation with a new search query. This tool continues a conversation started by perplexity_search or perplexity_deep_research, maintaining full context. You can switch between search and deep research modes within the same conversation.",
+      description: `Follow up on an existing Perplexity conversation with a new search query. This tool continues a conversation started by perplexity_search or perplexity_deep_research, maintaining full context. You can switch between search and deep research modes within the same conversation. ${PERPLEXITY_PRIVACY_DISCLAIMER}`,
       inputSchema: PerplexitySearchFollowupInputSchema.shape,
       outputSchema: PerplexitySearchFollowupResponseSchema.shape,
     },
