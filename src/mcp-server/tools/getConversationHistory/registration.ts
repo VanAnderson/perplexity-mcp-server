@@ -35,6 +35,9 @@ export const registerGetConversationHistory = async (server: McpServer): Promise
       try {
         const result = await getConversationHistoryLogic(params, context);
 
+        // Add status message if present (for async jobs)
+        const statusSection = result.statusMessage ? `${result.statusMessage}\n\n---\n\n` : '';
+
         // Format conversation history as readable text
         const header = `📜 **Conversation History**\nConversation ID: \`${result.conversationId}\`\nCreated: ${new Date(result.createdAt).toLocaleString()}\nLast Updated: ${new Date(result.updatedAt).toLocaleString()}\nMessages: ${result.messageCount}\nLocation: \`${result.conversationPath}\`\n\n---\n\n`;
 
@@ -44,7 +47,7 @@ export const registerGetConversationHistory = async (server: McpServer): Promise
           return `**${role}:**\n${msg.content}${separator}`;
         });
 
-        const fullText = header + messageTexts.join('');
+        const fullText = statusSection + header + messageTexts.join('');
 
         return {
           structuredContent: result,

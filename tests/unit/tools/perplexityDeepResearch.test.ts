@@ -3,7 +3,7 @@
  * Tests deep research query handling, reasoning effort, and comprehensive report generation
  */
 
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from '@jest/globals';
 import nock from 'nock';
 import { perplexityDeepResearchLogic, PerplexityDeepResearchInput } from '../../../src/mcp-server/tools/perplexityDeepResearch/logic.js';
 import { createMockContext } from '../../fixtures/contexts.js';
@@ -13,6 +13,18 @@ import { config } from '../../../src/config/index.js';
 describe('perplexityDeepResearchLogic', () => {
   const context = createMockContext({ toolName: 'perplexity_deep_research' });
   const apiBaseUrl = config.perplexityApiBaseUrl;
+  let originalAsyncFlag: boolean;
+
+  beforeAll(() => {
+    // Force blocking mode for tests
+    originalAsyncFlag = config.perplexityEnableAsyncDeepResearch;
+    (config as any).perplexityEnableAsyncDeepResearch = false;
+  });
+
+  afterAll(() => {
+    // Restore original flag
+    (config as any).perplexityEnableAsyncDeepResearch = originalAsyncFlag;
+  });
 
   beforeEach(() => {
     nock.cleanAll();

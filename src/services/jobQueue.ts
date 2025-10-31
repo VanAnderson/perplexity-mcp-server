@@ -3,7 +3,7 @@
  * @module src/services/jobQueue
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
 import { config } from '../config/index.js';
 import { BaseErrorCode, McpError } from '../types-global/errors.js';
@@ -124,6 +124,14 @@ class JobQueueService {
       }
 
       if (highestPriorityJob) {
+        // Atomically mark the job as in_progress before returning it
+        const status = this.getJobStatus(highestPriorityJob.job.conversationId);
+        if (status) {
+          status.status = JobStatus.IN_PROGRESS;
+          status.updatedAt = new Date().toISOString();
+          this.updateJobStatus(highestPriorityJob.job.conversationId, status);
+        }
+        
         logger.info(`Job dequeued: ${highestPriorityJob.job.conversationId} (${highestPriorityJob.job.toolName}, priority: ${highestPriorityJob.job.priority})`);
       }
 
@@ -146,18 +154,12 @@ class JobQueueService {
       // Validate status
       const validatedStatus = ConversationStatusSchema.parse(status);
       
-      // Write status file atomically
-      const tempPath = `${statusFilePath}.tmp`;
+      // Write to temp file first, then atomically rename
+      const tempPath = `${statusFilePath}.tmp.${Date.now()}.${process.pid}`;
       writeFileSync(tempPath, JSON.stringify(validatedStatus, null, 2), 'utf-8');
       
-      if (existsSync(statusFilePath)) {
-        unlinkSync(statusFilePath);
-      }
-      writeFileSync(statusFilePath, JSON.stringify(validatedStatus, null, 2), 'utf-8');
-      
-      if (existsSync(tempPath)) {
-        unlinkSync(tempPath);
-      }
+      // Atomic rename (overwrites existing file atomically on POSIX systems)
+      renameSync(tempPath, statusFilePath);
 
       logger.debug(`Job status updated: ${conversationId} -> ${status.status}`);
     } catch (error) {

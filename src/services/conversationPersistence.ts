@@ -4,7 +4,7 @@
  * @module src/services/conversationPersistence
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { config } from '../config/index.js';
@@ -398,18 +398,12 @@ class ConversationPersistenceService {
       // Validate status
       const validatedStatus = ConversationStatusSchema.parse(statusUpdate);
       
-      // Write status file atomically
-      const tempPath = `${statusFilePath}.tmp`;
+      // Write to temp file first, then atomically rename
+      const tempPath = `${statusFilePath}.tmp.${Date.now()}.${process.pid}`;
       writeFileSync(tempPath, JSON.stringify(validatedStatus, null, 2), 'utf-8');
       
-      if (existsSync(statusFilePath)) {
-        unlinkSync(statusFilePath);
-      }
-      writeFileSync(statusFilePath, JSON.stringify(validatedStatus, null, 2), 'utf-8');
-      
-      if (existsSync(tempPath)) {
-        unlinkSync(tempPath);
-      }
+      // Atomic rename (overwrites existing file atomically on POSIX systems)
+      renameSync(tempPath, statusFilePath);
 
       logger.debug('Updated conversation status', {
         ...context,
