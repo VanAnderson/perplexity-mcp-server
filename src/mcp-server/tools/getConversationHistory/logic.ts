@@ -83,9 +83,14 @@ export async function getConversationHistoryLogic(
     // Generate status message based on job status
     switch (jobStatus.status) {
       case 'pending':
+        const attempts = jobStatus.attempts || 0;
+        const retryInfo = attempts > 0 
+          ? `\n**Retry Attempt:** ${attempts + 1} (previous attempts encountered errors)` 
+          : '';
+        
         response.statusMessage = `🕒 **Job Status: Pending**
 
-This deep research query is queued and waiting to start. The system will process it shortly.
+This deep research query is queued and waiting to start. The system will process it shortly.${retryInfo}
 
 **What to do:**
 - Check back in a moment using \`get_conversation_history\` with this conversation ID
@@ -98,13 +103,17 @@ This deep research query is queued and waiting to start. The system will process
           : 0;
         const progressPercent = jobStatus.progress?.percentage || 0;
         const progressMsg = jobStatus.progress?.message || 'Processing...';
+        const inProgressAttempts = jobStatus.attempts || 0;
+        const attemptInfo = inProgressAttempts > 0 
+          ? `\n**Current Attempt:** ${inProgressAttempts + 1}` 
+          : '';
         
         response.statusMessage = `⏳ **Job Status: In Progress** (${progressPercent}%)
 
 This deep research query is currently being processed.
 
 **Progress:** ${progressMsg}
-**Elapsed Time:** ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''}
+**Elapsed Time:** ${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''}${attemptInfo}
 ${jobStatus.progress?.estimatedRemainingMs ? `**Estimated Remaining:** ${Math.floor(jobStatus.progress.estimatedRemainingMs / 60000)} minute(s)` : ''}
 
 **What to do:**
@@ -121,13 +130,26 @@ This deep research query has finished processing successfully. The full research
       case 'failed':
         const errorMsg = jobStatus.error?.message || 'Unknown error';
         const errorCode = jobStatus.error?.code || 'UNKNOWN';
+        const failedAttempts = jobStatus.attempts || 0;
+        const attemptSuffix = failedAttempts > 0 
+          ? ` after ${failedAttempts} attempt${failedAttempts !== 1 ? 's' : ''}` 
+          : '';
+        
+        // Build error history section
+        let errorHistorySection = '';
+        if (jobStatus.errorHistory && jobStatus.errorHistory.length > 0) {
+          errorHistorySection = '\n\n**Error History:**\n';
+          jobStatus.errorHistory.forEach((err, idx) => {
+            errorHistorySection += `${idx + 1}. [${err.code}] ${err.message}\n`;
+          });
+        }
         
         response.statusMessage = `❌ **Job Status: Failed**
 
-This deep research query encountered an error and could not be completed.
+This deep research query encountered an error and could not be completed${attemptSuffix}.
 
-**Error Code:** ${errorCode}
-**Error Message:** ${errorMsg}
+**Latest Error Code:** ${errorCode}
+**Latest Error Message:** ${errorMsg}${errorHistorySection}
 
 **What to do:**
 - Review the error details above

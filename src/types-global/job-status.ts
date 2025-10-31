@@ -65,6 +65,8 @@ export const ConversationStatusSchema = z.object({
   completedAt: z.string().datetime().optional().describe('ISO 8601 timestamp when job completed'),
   progress: ProgressInfoSchema.optional().describe('Progress information if job is in progress'),
   error: JobErrorSchema.optional().describe('Error information if job failed'),
+  errorHistory: z.array(JobErrorSchema).optional().describe('History of errors encountered (for retries)'),
+  attempts: z.number().int().nonnegative().default(0).describe('Number of execution attempts'),
   metadata: z.record(z.any()).optional().describe('Additional metadata for the job'),
 });
 
@@ -113,6 +115,7 @@ export function createInitialStatus(
     toolName,
     startedAt: now,
     updatedAt: now,
+    attempts: 0,
     metadata,
   };
 }
@@ -163,12 +166,54 @@ export function markStatusFailed(
   error: JobError
 ): ConversationStatus {
   const now = new Date().toISOString();
+  
+  // Add error to history
+  const errorHistory = status.errorHistory || [];
+  errorHistory.push(error);
+  
   return {
     ...status,
     status: JobStatus.FAILED,
     updatedAt: now,
     completedAt: now,
     error,
+    errorHistory,
+  };
+}
+
+/**
+ * Helper function to mark status for retry
+ */
+export function markStatusForRetry(
+  status: ConversationStatus,
+  error: JobError
+): ConversationStatus {
+  const now = new Date().toISOString();
+  
+  // Add error to history
+  const errorHistory = status.errorHistory || [];
+  errorHistory.push(error);
+  
+  // Increment attempts
+  const attempts = (status.attempts || 0) + 1;
+  
+  return {
+    ...status,
+    status: JobStatus.PENDING,
+    updatedAt: now,
+    error,
+    errorHistory,
+    attempts,
+  };
+}
+
+/**
+ * Helper function to increment attempts when job starts
+ */
+export function incrementAttempts(status: ConversationStatus): ConversationStatus {
+  return {
+    ...status,
+    attempts: (status.attempts || 0) + 1,
   };
 }
 

@@ -11,7 +11,9 @@
         "NODE_ENV": "development", // Optional: development, production (defaults to development)
         "PERPLEXITY_DEFAULT_MODEL": "sonar-reasoning", // Optional: Defaults to sonar-reasoning
         "PERPLEXITY_DEFAULT_SEARCH_CONTEXT": "high", // Optional: low, medium, high (defaults to high)
-        "PERPLEXITY_ENABLE_SECURITY_DISCLAIMER": "true" // Optional: Set to "true" or "1" to enable security warnings for sensitive work contexts (defaults to false)
+        "PERPLEXITY_ENABLE_SECURITY_DISCLAIMER": "true", // Optional: Set to "true" or "1" to enable security warnings for sensitive work contexts (defaults to false)
+        "PERPLEXITY_ENABLE_ASYNC_DEEP_RESEARCH": "true", // Optional: Set to "true" or "1" to enable non-blocking deep research (defaults to false)
+        "PERPLEXITY_MAX_JOB_RETRIES": "2" // Optional: Maximum number of retry attempts for failed jobs (defaults to 2, meaning 3 total attempts)
       }
     }
     // Add configurations for other MCP servers here if needed

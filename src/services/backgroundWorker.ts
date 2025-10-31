@@ -11,6 +11,8 @@ import {
   updateStatusWithProgress,
   markStatusCompleted,
   markStatusFailed,
+  markStatusForRetry,
+  incrementAttempts,
   type JobError,
 } from '../types-global/job-status.js';
 import { logger, requestContextService } from '../utils/index.js';
@@ -252,6 +254,7 @@ class BackgroundWorkerService {
         ...context,
         conversationId: job.conversationId,
         error: error instanceof Error ? error.message : String(error),
+        attempt: job.attempts + 1,
       });
 
       // Get current status
@@ -265,14 +268,40 @@ class BackgroundWorkerService {
           stackTrace: error instanceof Error ? error.stack : undefined,
         };
 
-        // Mark as failed
-        status = markStatusFailed(status, jobError);
-        jobQueueService.updateJobStatus(job.conversationId, status);
-        conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+        // Check if we should retry
+        const maxRetries = config.perplexityMaxJobRetries;
+        const currentAttempt = status.attempts || 0;
+        
+        if (currentAttempt < maxRetries) {
+          // Retry: mark for retry and re-enqueue
+          logger.info(`Retrying job ${job.conversationId} (attempt ${currentAttempt + 1} of ${maxRetries})`, {
+            ...context,
+            conversationId: job.conversationId,
+            currentAttempt,
+            maxRetries,
+          });
+          
+          status = markStatusForRetry(status, jobError);
+          jobQueueService.updateJobStatus(job.conversationId, status);
+          conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+          
+          // Job will be picked up again by the worker since status is PENDING
+        } else {
+          // Max retries exceeded: mark as permanently failed
+          logger.error(`Job ${job.conversationId} failed after ${currentAttempt} attempts`, {
+            ...context,
+            conversationId: job.conversationId,
+            maxRetries,
+          });
+          
+          status = markStatusFailed(status, jobError);
+          jobQueueService.updateJobStatus(job.conversationId, status);
+          conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+          
+          // Remove job from queue
+          jobQueueService.removeJob(job.conversationId);
+        }
       }
-
-      // Remove job from queue (don't retry for now)
-      jobQueueService.removeJob(job.conversationId);
     }
   }
 
@@ -371,6 +400,7 @@ class BackgroundWorkerService {
         ...context,
         conversationId: job.conversationId,
         error: error instanceof Error ? error.message : String(error),
+        attempt: job.attempts + 1,
       });
 
       // Get current status
@@ -384,14 +414,40 @@ class BackgroundWorkerService {
           stackTrace: error instanceof Error ? error.stack : undefined,
         };
 
-        // Mark as failed
-        status = markStatusFailed(status, jobError);
-        jobQueueService.updateJobStatus(job.conversationId, status);
-        conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+        // Check if we should retry
+        const maxRetries = config.perplexityMaxJobRetries;
+        const currentAttempt = status.attempts || 0;
+        
+        if (currentAttempt < maxRetries) {
+          // Retry: mark for retry and re-enqueue
+          logger.info(`Retrying job ${job.conversationId} (attempt ${currentAttempt + 1} of ${maxRetries})`, {
+            ...context,
+            conversationId: job.conversationId,
+            currentAttempt,
+            maxRetries,
+          });
+          
+          status = markStatusForRetry(status, jobError);
+          jobQueueService.updateJobStatus(job.conversationId, status);
+          conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+          
+          // Job will be picked up again by the worker since status is PENDING
+        } else {
+          // Max retries exceeded: mark as permanently failed
+          logger.error(`Job ${job.conversationId} failed after ${currentAttempt} attempts`, {
+            ...context,
+            conversationId: job.conversationId,
+            maxRetries,
+          });
+          
+          status = markStatusFailed(status, jobError);
+          jobQueueService.updateJobStatus(job.conversationId, status);
+          conversationPersistenceService.updateConversationStatus(job.conversationId, status, context);
+          
+          // Remove job from queue
+          jobQueueService.removeJob(job.conversationId);
+        }
       }
-
-      // Remove job from queue (don't retry for now)
-      jobQueueService.removeJob(job.conversationId);
     }
   }
 

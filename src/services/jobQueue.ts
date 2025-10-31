@@ -91,8 +91,9 @@ class JobQueueService {
       }
 
       const conversations = readdirSync(baseDir);
-      let highestPriorityJob: { job: JobData; filePath: string } | null = null;
+      let highestPriorityJob: { job: JobData; conversationId: string } | null = null;
 
+      // First pass: find highest priority pending job
       for (const conversationId of conversations) {
         const jobFilePath = this.getJobFilePath(conversationId);
         const statusFilePath = this.getStatusFilePath(conversationId);
@@ -115,7 +116,7 @@ class JobQueueService {
 
           // Select highest priority job
           if (!highestPriorityJob || job.priority > highestPriorityJob.job.priority) {
-            highestPriorityJob = { job, filePath: jobFilePath };
+            highestPriorityJob = { job, conversationId };
           }
         } catch (parseError) {
           logger.warning(`Failed to parse job or status file for ${conversationId}, skipping: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
@@ -123,19 +124,43 @@ class JobQueueService {
         }
       }
 
+      // Second pass: atomically claim the job by updating status
       if (highestPriorityJob) {
-        // Atomically mark the job as in_progress before returning it
-        const status = this.getJobStatus(highestPriorityJob.job.conversationId);
-        if (status) {
+        try {
+          const statusFilePath = this.getStatusFilePath(highestPriorityJob.conversationId);
+          
+          // Re-read status to ensure it's still pending (double-check)
+          const statusContent = readFileSync(statusFilePath, 'utf-8');
+          const status = ConversationStatusSchema.parse(JSON.parse(statusContent));
+          
+          // Race condition check: if status changed, someone else claimed it
+          if (status.status !== JobStatus.PENDING) {
+            logger.debug(`Job ${highestPriorityJob.conversationId} was claimed by another worker`);
+            return null;
+          }
+          
+          // Atomically update status to IN_PROGRESS
           status.status = JobStatus.IN_PROGRESS;
           status.updatedAt = new Date().toISOString();
-          this.updateJobStatus(highestPriorityJob.job.conversationId, status);
+          
+          // Write to temp file first, then atomically rename
+          const tempPath = `${statusFilePath}.tmp.${Date.now()}.${process.pid}`;
+          writeFileSync(tempPath, JSON.stringify(status, null, 2), 'utf-8');
+          
+          // Atomic rename - if this fails, another process won the race
+          renameSync(tempPath, statusFilePath);
+          
+          logger.info(`Job dequeued: ${highestPriorityJob.conversationId} (${highestPriorityJob.job.toolName}, priority: ${highestPriorityJob.job.priority})`);
+          
+          return highestPriorityJob.job;
+        } catch (claimError) {
+          // Failed to claim job (likely race condition) - another worker got it
+          logger.debug(`Failed to claim job ${highestPriorityJob.conversationId}: ${claimError instanceof Error ? claimError.message : String(claimError)}`);
+          return null;
         }
-        
-        logger.info(`Job dequeued: ${highestPriorityJob.job.conversationId} (${highestPriorityJob.job.toolName}, priority: ${highestPriorityJob.job.priority})`);
       }
 
-      return highestPriorityJob ? highestPriorityJob.job : null;
+      return null;
     } catch (error) {
       logger.error(`Failed to dequeue job: ${error instanceof Error ? error.message : String(error)}`);
       return null;
