@@ -71,7 +71,7 @@ const EnvSchema = z.object({
   PERPLEXITY_DEFAULT_EFFORT: z.enum(["low", "medium", "high"]).default("medium"),
   PERPLEXITY_API_BASE_URL: z.string().url().default('https://api.perplexity.ai'),
   PERPLEXITY_POLLING_INTERVAL_MS: z.coerce.number().int().positive().default(2000),
-  PERPLEXITY_POLLING_TIMEOUT_MS: z.coerce.number().int().positive().default(120000),
+  PERPLEXITY_POLLING_TIMEOUT_MS: z.coerce.number().int().positive().default(600000),
   PERPLEXITY_ENABLE_SECURITY_DISCLAIMER: z.string().optional().transform((val) => val === "true" || val === "1"),
 });
 
