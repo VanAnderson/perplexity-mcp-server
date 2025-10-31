@@ -20,6 +20,7 @@ description: Archive a deployed OpenSpec change and update specs.
 3. Run `openspec archive <id> --yes` so the CLI moves the change and applies spec updates without prompts (use `--skip-specs` only for tooling-only work).
 4. Review the command output to confirm the target specs were updated and the change landed in `changes/archive/`.
 5. Validate with `openspec validate --strict` and inspect with `openspec show <id>` if anything looks off.
+6. Review `openspec/specs` to ensure changes were properly incorperated
 
 **Reference**
 - Use `openspec list` to confirm change IDs before archiving.

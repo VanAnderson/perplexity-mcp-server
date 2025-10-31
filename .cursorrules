@@ -46,6 +46,58 @@ Before considering a MODIFIED requirement complete, verify:
 - [ ] New scenarios are clearly marked
 - [ ] `openspec validate --strict` passes
 
+## OpenSpec Archival Workflow - Merging to Ground State
+
+After implementation and testing are complete, archive the change proposal to merge it with the ground state specs.
+
+**CRITICAL STEPS:**
+1. **Ensure all work is complete**: All tasks in `tasks.md` should be done and tested
+2. **Run archive command**: `openspec archive <change-id> --yes`
+3. **Verify merge**: Check that specs updated correctly in the command output
+4. **Validate ground state**: Run `openspec validate --specs` to ensure no errors
+5. **Commit the archival**: Commit both the archived change and updated ground state specs
+
+**Archive Command:**
+```bash
+# Archive with automatic confirmation (non-interactive)
+openspec archive <change-id> --yes
+
+# Example
+openspec archive add-batch-conversation-retrieval --yes
+```
+
+**What Happens During Archive:**
+- Change directory moves from `openspec/changes/<change-id>/` to `openspec/changes/archive/YYYY-MM-DD-<change-id>/`
+- ADDED requirements are appended to corresponding specs in `openspec/specs/<capability>/spec.md`
+- MODIFIED requirements replace existing requirements (matched by header)
+- REMOVED requirements are deleted from specs
+- The archive preserves the original proposal, tasks, and spec deltas for historical reference
+
+**Post-Archive Validation:**
+```bash
+# Validate all specs in strict mode
+openspec validate --specs
+
+# Should show all specs passing, e.g.:
+# ✓ spec/async-deep-research
+# ✓ spec/conversation-history
+# ... (all specs)
+```
+
+**Common Issues:**
+- **Warning about incomplete tasks**: The `--yes` flag bypasses this check. Ensure tasks are actually complete before archiving.
+- **Merge conflicts**: If MODIFIED requirement header doesn't match exactly, archiving may fail or create duplicate requirements.
+- **Validation errors after archive**: Usually indicates malformed scenarios or requirements. Check the updated spec files.
+
+**Commit Message Template:**
+```
+Archive <change-id> proposal and merge to ground state specs
+
+- Archive <change-id> to YYYY-MM-DD-<change-id>
+- Update <capability> spec with <new/modified> requirements
+- All specs validated successfully with strict mode
+```
+
 ## Project-Specific Best Practices
 
 ### Async/Await Patterns
