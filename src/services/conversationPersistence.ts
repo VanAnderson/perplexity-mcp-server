@@ -4,13 +4,14 @@
  * @module src/services/conversationPersistence
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'fs';
 import path from 'path';
 import { z } from 'zod';
 import { config } from '../config/index.js';
 import { BaseErrorCode, McpError } from '../types-global/errors.js';
 import { ErrorHandler, logger, type RequestContext } from '../utils/index.js';
 import { generateConversationId, isValidConversationId } from '../utils/conversation/conversationIdGenerator.js';
+import { ConversationStatus, ConversationStatusSchema, createInitialStatus } from '../types-global/job-status.js';
 
 /**
  * Schema for a single conversation message.
@@ -68,6 +69,24 @@ class ConversationPersistenceService {
    */
   private getConversationFilePath(conversationId: string): string {
     return path.join(this.getConversationDir(conversationId), 'conversation.json');
+  }
+
+  /**
+   * Gets the file path for a conversation's status file.
+   * @param conversationId - The conversation ID
+   * @returns The absolute path to the status.json file
+   */
+  public getStatusFilePath(conversationId: string): string {
+    return path.join(this.getConversationDir(conversationId), 'status.json');
+  }
+
+  /**
+   * Gets the file path for a conversation's job file.
+   * @param conversationId - The conversation ID
+   * @returns The absolute path to the job.json file
+   */
+  public getJobFilePath(conversationId: string): string {
+    return path.join(this.getConversationDir(conversationId), 'job.json');
   }
 
   /**
@@ -297,6 +316,210 @@ class ConversationPersistenceService {
         errorCode: BaseErrorCode.INTERNAL_ERROR,
       }
     );
+  }
+
+  /**
+   * Creates a new conversation with an initial status file.
+   * Used for async job processing.
+   * @param messages - Array of initial messages
+   * @param toolName - Name of the tool creating the conversation
+   * @param context - Request context for logging
+   * @param conversationId - Optional conversation ID (generates one if not provided)
+   * @returns The created conversation
+   */
+  async createConversationWithStatus(
+    messages: ConversationMessage[],
+    toolName: string,
+    context: RequestContext,
+    conversationId?: string
+  ): Promise<Conversation> {
+    const convId = conversationId || generateConversationId();
+    
+    // Create the conversation directory first
+    this.ensureConversationDir(convId, context);
+    
+    // Create initial status
+    const status = createInitialStatus(convId, toolName);
+    const statusFilePath = this.getStatusFilePath(convId);
+    
+    try {
+      // Write status file
+      writeFileSync(statusFilePath, JSON.stringify(status, null, 2), 'utf-8');
+      logger.debug('Created status file', { ...context, conversationId: convId });
+    } catch (error) {
+      throw new McpError(
+        BaseErrorCode.FILESYSTEM_ERROR,
+        `Failed to create status file: ${error instanceof Error ? error.message : String(error)}`,
+        { conversationId: convId }
+      );
+    }
+    
+    // Create the conversation (passing convId as optional third argument)
+    const now = new Date().toISOString();
+    const conversation: Conversation = {
+      conversationId: convId,
+      createdAt: now,
+      updatedAt: now,
+      messageCount: messages.length,
+      messages,
+    };
+
+    const conversationFilePath = this.getConversationFilePath(convId);
+    const validatedConversation = ConversationSchema.parse(conversation);
+
+    try {
+      writeFileSync(conversationFilePath, JSON.stringify(validatedConversation, null, 2), 'utf-8');
+      logger.info('Conversation created with status', { ...context, conversationId: convId });
+    } catch (error) {
+      throw new McpError(
+        BaseErrorCode.FILESYSTEM_ERROR,
+        `Failed to write conversation file: ${error instanceof Error ? error.message : String(error)}`,
+        { conversationId: convId }
+      );
+    }
+
+    return validatedConversation;
+  }
+
+  /**
+   * Updates the status of a conversation.
+   * @param conversationId - The conversation ID
+   * @param statusUpdate - Partial or full status update
+   * @param context - Request context for logging
+   */
+  updateConversationStatus(
+    conversationId: string,
+    statusUpdate: ConversationStatus,
+    context: RequestContext
+  ): void {
+    const statusFilePath = this.getStatusFilePath(conversationId);
+    
+    try {
+      // Validate status
+      const validatedStatus = ConversationStatusSchema.parse(statusUpdate);
+      
+      // Write status file atomically
+      const tempPath = `${statusFilePath}.tmp`;
+      writeFileSync(tempPath, JSON.stringify(validatedStatus, null, 2), 'utf-8');
+      
+      if (existsSync(statusFilePath)) {
+        unlinkSync(statusFilePath);
+      }
+      writeFileSync(statusFilePath, JSON.stringify(validatedStatus, null, 2), 'utf-8');
+      
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+
+      logger.debug('Updated conversation status', {
+        ...context,
+        conversationId,
+        status: validatedStatus.status,
+      });
+    } catch (error) {
+      throw new McpError(
+        BaseErrorCode.FILESYSTEM_ERROR,
+        `Failed to update conversation status: ${error instanceof Error ? error.message : String(error)}`,
+        { conversationId }
+      );
+    }
+  }
+
+  /**
+   * Gets the status of a conversation.
+   * @param conversationId - The conversation ID
+   * @param context - Request context for logging
+   * @returns The conversation status or null if not found
+   */
+  getConversationStatus(conversationId: string, context: RequestContext): ConversationStatus | null {
+    const statusFilePath = this.getStatusFilePath(conversationId);
+    
+    if (!existsSync(statusFilePath)) {
+      logger.debug('Status file not found', { ...context, conversationId });
+      return null;
+    }
+
+    try {
+      const statusContent = readFileSync(statusFilePath, 'utf-8');
+      const status = ConversationStatusSchema.parse(JSON.parse(statusContent));
+      return status;
+    } catch (error) {
+      logger.error('Failed to read conversation status', {
+        ...context,
+        conversationId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Appends a message to an existing conversation.
+   * Supports incremental/partial updates for streaming.
+   * @param conversationId - The conversation ID
+   * @param message - The message to append
+   * @param context - Request context for logging
+   * @param partial - If true, indicates this is a partial/incremental update
+   */
+  async appendToConversation(
+    conversationId: string,
+    message: ConversationMessage,
+    context: RequestContext,
+    partial: boolean = false
+  ): Promise<void> {
+    // Load existing conversation
+    const conversation = await this.loadConversation(conversationId, context);
+    
+    // If partial, check if last message is from same role and update it
+    if (partial && conversation.messages.length > 0) {
+      const lastMessage = conversation.messages[conversation.messages.length - 1];
+      if (lastMessage.role === message.role) {
+        // Append to existing message content
+        lastMessage.content += message.content;
+      } else {
+        // Different role, add as new message
+        conversation.messages.push(message);
+      }
+    } else {
+      // Not partial, just add new message
+      conversation.messages.push(message);
+    }
+    
+    // Update metadata
+    conversation.updatedAt = new Date().toISOString();
+    conversation.messageCount = conversation.messages.length;
+    
+    // Save updated conversation
+    const conversationFilePath = this.getConversationFilePath(conversationId);
+    const validatedConversation = ConversationSchema.parse(conversation);
+    
+    try {
+      // Atomic write
+      const tempPath = `${conversationFilePath}.tmp`;
+      writeFileSync(tempPath, JSON.stringify(validatedConversation, null, 2), 'utf-8');
+      
+      if (existsSync(conversationFilePath)) {
+        unlinkSync(conversationFilePath);
+      }
+      writeFileSync(conversationFilePath, JSON.stringify(validatedConversation, null, 2), 'utf-8');
+      
+      if (existsSync(tempPath)) {
+        unlinkSync(tempPath);
+      }
+
+      logger.debug('Appended message to conversation', {
+        ...context,
+        conversationId,
+        partial,
+        messageRole: message.role,
+      });
+    } catch (error) {
+      throw new McpError(
+        BaseErrorCode.FILESYSTEM_ERROR,
+        `Failed to append to conversation: ${error instanceof Error ? error.message : String(error)}`,
+        { conversationId }
+      );
+    }
   }
 }
 

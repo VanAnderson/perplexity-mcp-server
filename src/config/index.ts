@@ -73,6 +73,7 @@ const EnvSchema = z.object({
   PERPLEXITY_POLLING_INTERVAL_MS: z.coerce.number().int().positive().default(2000),
   PERPLEXITY_POLLING_TIMEOUT_MS: z.coerce.number().int().positive().default(600000),
   PERPLEXITY_ENABLE_SECURITY_DISCLAIMER: z.string().optional().transform((val) => val === "true" || val === "1"),
+  PERPLEXITY_ENABLE_ASYNC_DEEP_RESEARCH: z.string().optional().transform((val) => val === "true" || val === "1"),
 });
 
 const parsedEnv = EnvSchema.safeParse(process.env);
@@ -153,6 +154,7 @@ export const config = {
   perplexityPollingIntervalMs: env.PERPLEXITY_POLLING_INTERVAL_MS,
   perplexityPollingTimeoutMs: env.PERPLEXITY_POLLING_TIMEOUT_MS,
   perplexityEnableSecurityDisclaimer: env.PERPLEXITY_ENABLE_SECURITY_DISCLAIMER || false,
+  perplexityEnableAsyncDeepResearch: env.PERPLEXITY_ENABLE_ASYNC_DEEP_RESEARCH || false,
 };
 
 if (!config.perplexityApiKey) {

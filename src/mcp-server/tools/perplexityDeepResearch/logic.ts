@@ -5,8 +5,11 @@
  */
 
 import { z } from 'zod';
+import { config } from '../../../config/index.js';
 import { perplexityApiService, conversationPersistenceService, PerplexityChatCompletionRequest } from '../../../services/index.js';
+import { jobQueueService } from '../../../services/jobQueue.js';
 import { BaseErrorCode, McpError } from '../../../types-global/errors.js';
+import { JobData } from '../../../types-global/job-status.js';
 import { logger, RequestContext } from '../../../utils/index.js';
 import { PerplexitySearchResponseSchema } from '../perplexitySearch/logic.js';
 
@@ -52,6 +55,68 @@ export async function perplexityDeepResearchLogic(
 ): Promise<PerplexityDeepResearchResponse> {
   logger.debug("Executing perplexityDeepResearchLogic...", { ...context, toolInput: params });
 
+  // Check if async mode is enabled
+  if (config.perplexityEnableAsyncDeepResearch) {
+    logger.info("Async mode enabled, queueing deep research job", { ...context });
+    
+    // Create conversation with just system and user messages (no assistant response yet)
+    const conversation = await conversationPersistenceService.createConversationWithStatus(
+      [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: params.query },
+      ],
+      'perplexity_deep_research',
+      context
+    );
+
+    // Create job data
+    const jobData: JobData = {
+      conversationId: conversation.conversationId,
+      toolName: 'perplexity_deep_research',
+      params: {
+        query: params.query,
+        reasoning_effort: params.reasoning_effort,
+      },
+      createdAt: new Date().toISOString(),
+      attempts: 0,
+      maxAttempts: 3,
+      priority: 0,
+    };
+
+    // Enqueue the job
+    jobQueueService.enqueueJob(jobData);
+
+    // Return immediately with instructions
+    const toolResponse: PerplexityDeepResearchResponse = {
+      rawResultText: `Deep research query has been queued for background processing.
+
+This query will be processed asynchronously. To check the status and retrieve results:
+
+1. Use \`get_conversation_history\` with conversation ID: \`${conversation.conversationId}\`
+2. The status will show:
+   - "pending": Waiting to start
+   - "in_progress": Currently processing
+   - "completed": Results ready (conversation will contain the full research report)
+   - "failed": An error occurred (details will be in the status)
+
+You can run multiple deep research queries concurrently and poll each one independently.`,
+      responseId: 'queued',
+      modelUsed: 'sonar-deep-research',
+      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+      searchResults: [],
+      conversationId: conversation.conversationId,
+      conversationPath: conversationPersistenceService.getConversationPath(conversation.conversationId),
+    };
+
+    logger.info("Deep research job queued successfully", {
+      ...context,
+      conversationId: conversation.conversationId,
+    });
+
+    return toolResponse;
+  }
+
+  // Blocking mode (default) - existing behavior
   const requestPayload: PerplexityChatCompletionRequest = {
     model: 'sonar-deep-research',
     messages: [
@@ -62,7 +127,7 @@ export async function perplexityDeepResearchLogic(
     stream: false,
   };
 
-  logger.info("Calling Perplexity API with deep research model", { ...context, reasoningEffort: params.reasoning_effort });
+  logger.info("Calling Perplexity API with deep research model (blocking mode)", { ...context, reasoningEffort: params.reasoning_effort });
   logger.debug("API Payload", { ...context, payload: requestPayload });
 
   const response = await perplexityApiService.chatCompletion(requestPayload, context);

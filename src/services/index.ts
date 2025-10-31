@@ -21,3 +21,11 @@ export {
   type Conversation,
   type ConversationMessage,
 } from './conversationPersistence.js';
+
+export {
+  jobQueueService,
+} from './jobQueue.js';
+
+export {
+  backgroundWorkerService,
+} from './backgroundWorker.js';

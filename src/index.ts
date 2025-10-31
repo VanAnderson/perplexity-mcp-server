@@ -11,11 +11,13 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import http from "http";
 import { config, environment } from "./config/index.js";
 import { initializeAndStartServer } from "./mcp-server/server.js";
+import { backgroundWorkerService } from "./services/backgroundWorker.js";
 import { requestContextService } from "./utils/internal/requestContext.js";
 import { logger, McpLogLevel } from "./utils/internal/logger.js";
 
 let mcpStdioServer: McpServer | undefined;
 let actualHttpServer: http.Server | undefined;
+let workerStarted: boolean = false;
 
 const shutdown = async (signal: string): Promise<void> => {
   const shutdownContext = requestContextService.createRequestContext({
@@ -29,6 +31,12 @@ const shutdown = async (signal: string): Promise<void> => {
   );
 
   const shutdownPromises: Promise<void>[] = [];
+
+  // Stop background worker if running
+  if (workerStarted) {
+    logger.info("Stopping background worker...", shutdownContext);
+    backgroundWorkerService.stopWorker();
+  }
 
   if (mcpStdioServer) {
     shutdownPromises.push(mcpStdioServer.close().catch(err => {
@@ -99,6 +107,16 @@ const start = async (): Promise<void> => {
       mcpStdioServer = serverInstance;
     } else if (config.mcpTransportType === "http" && serverInstance instanceof http.Server) {
       actualHttpServer = serverInstance;
+    }
+
+    // Start background worker if async deep research is enabled
+    if (config.perplexityEnableAsyncDeepResearch) {
+      logger.info("Async deep research enabled, starting background worker...", startupContext);
+      backgroundWorkerService.startWorker();
+      workerStarted = true;
+      logger.info("Background worker started successfully", startupContext);
+    } else {
+      logger.info("Async deep research disabled, background worker not started", startupContext);
     }
 
     logger.info(
