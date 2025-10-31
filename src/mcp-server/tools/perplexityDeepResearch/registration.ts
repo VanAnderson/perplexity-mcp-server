@@ -29,7 +29,6 @@ export const registerPerplexityDeepResearchTool = async (server: McpServer): Pro
       title: "Perplexity Deep Research",
       description: toolDescription,
       inputSchema: PerplexityDeepResearchInputSchema.shape,
-      outputSchema: PerplexityDeepResearchResponseSchema.shape,
       annotations: {
         readOnlyHint: false,
         openWorldHint: true,

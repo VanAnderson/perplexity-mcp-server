@@ -59,7 +59,7 @@ export type PerplexityChatCompletionRequest = z.infer<typeof PerplexityChatCompl
 
 // --- Async API Response Schemas ---
 
-const UsageSchema = z.object({
+export const UsageSchema = z.object({
     prompt_tokens: z.number(),
     completion_tokens: z.number(),
     total_tokens: z.number(),

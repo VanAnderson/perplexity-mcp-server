@@ -26,7 +26,6 @@ export const registerPerplexitySearchFollowup = async (server: McpServer): Promi
       title: "Perplexity Search Follow-up",
       description: `Follow up on an existing Perplexity conversation with a new search query. This tool continues a conversation started by perplexity_search or perplexity_deep_research, maintaining full context. You can switch between search and deep research modes within the same conversation. ${PERPLEXITY_PRIVACY_DISCLAIMER}`,
       inputSchema: PerplexitySearchFollowupInputSchema.shape,
-      outputSchema: PerplexitySearchFollowupResponseSchema.shape,
     },
     async (params: PerplexitySearchFollowupInput) => {
       const context = requestContextService.createRequestContext({

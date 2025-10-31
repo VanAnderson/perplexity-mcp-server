@@ -26,7 +26,6 @@ export const registerPerplexityDeepResearchFollowup = async (server: McpServer):
       title: "Perplexity Deep Research Follow-up",
       description: `Follow up on an existing Perplexity conversation with a deep research query. This tool continues a conversation started by perplexity_search or perplexity_deep_research, performing exhaustive multi-source research while maintaining full context. Cross-mode support allows switching between quick search and deep research. ${PERPLEXITY_PRIVACY_DISCLAIMER}`,
       inputSchema: PerplexityDeepResearchFollowupInputSchema.shape,
-      outputSchema: PerplexityDeepResearchFollowupResponseSchema.shape,
     },
     async (params: PerplexityDeepResearchFollowupInput) => {
       const context = requestContextService.createRequestContext({

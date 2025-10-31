@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { config } from '../../../config/index.js';
-import { perplexityApiService, conversationPersistenceService, PerplexityChatCompletionRequest, PerplexityChatCompletionRequestSchema } from '../../../services/index.js';
+import { perplexityApiService, conversationPersistenceService, PerplexityChatCompletionRequest, PerplexityChatCompletionRequestSchema, UsageSchema } from '../../../services/index.js';
 import { BaseErrorCode, McpError } from '../../../types-global/errors.js';
 import { logger, RequestContext } from '../../../utils/index.js';
 
@@ -32,11 +32,7 @@ export const PerplexitySearchResponseSchema = z.object({
     rawResultText: z.string().describe("The synthesized answer from the Perplexity model."),
     responseId: z.string().describe("The unique identifier for the Perplexity API response."),
     modelUsed: z.string().describe("The model that was used to generate the response."),
-    usage: z.object({
-        prompt_tokens: z.number(),
-        completion_tokens: z.number(),
-        total_tokens: z.number(),
-    }).describe("Token usage details for the API call."),
+    usage: UsageSchema.describe("Token usage details for the API call."),
     searchResults: z.array(SearchResultSchema).optional().describe("An array of web search results used to generate the response."),
     conversationId: z.string().describe("The unique conversation ID for this search session."),
     conversationPath: z.string().describe("The absolute path to the conversation directory."),

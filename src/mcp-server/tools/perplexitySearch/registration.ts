@@ -29,7 +29,6 @@ export const registerPerplexitySearchTool = async (server: McpServer): Promise<v
       title: "Perplexity Search",
       description: toolDescription,
       inputSchema: PerplexitySearchInputSchema.shape,
-      outputSchema: PerplexitySearchResponseSchema.shape,
       annotations: {
         readOnlyHint: false,
         openWorldHint: true,
