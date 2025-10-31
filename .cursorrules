@@ -1,0 +1,76 @@
+# Cursor Rules for Perplexity MCP Server
+
+## OpenSpec MODIFIED Requirements - Strict Matching Rule
+
+When creating MODIFIED requirements in OpenSpec change proposals:
+
+**CRITICAL STEPS (must follow in order):**
+1. **Read original spec first**: ALWAYS use `read_file` or `grep` to get the exact current requirement from `openspec/specs/<capability>/spec.md`
+2. **Copy complete requirement block**: Copy from `### Requirement: [Name]` through ALL scenarios (including the last one)
+3. **Verify header match**: Ensure the requirement header matches EXACTLY (whitespace is normalized, but text must be identical)
+4. **Preserve all original scenarios**: Keep every original `#### Scenario:` block
+5. **Add new scenarios**: Append new scenarios at the end, marked with `(new)` comment for clarity
+6. **Validate before committing**: Run `openspec validate <change-id> --strict`
+
+**Example Workflow:**
+```bash
+# Step 1: Read the original requirement
+grep -A 50 "### Requirement: Conversation Retrieval" openspec/specs/conversation-history/spec.md
+
+# Step 2: Copy ENTIRE block including all scenarios
+
+# Step 3: In change proposal, paste under ## MODIFIED Requirements
+
+# Step 4: Make your changes (add new scenarios, update behavior)
+
+# Step 5: Validate
+openspec validate <change-id> --strict
+```
+
+**Common Mistake to AVOID:**
+❌ Copying only part of the requirement
+❌ Forgetting original scenarios
+❌ Changing the requirement header text
+❌ Using a different header format
+
+**What Happens if Wrong:**
+- Archiving will fail to match requirements
+- Original scenarios get lost
+- Specs become incomplete
+
+**Validation Check:**
+Before considering a MODIFIED requirement complete, verify:
+- [ ] Original spec file was read
+- [ ] Header text matches exactly (check with grep)
+- [ ] All original scenarios are present
+- [ ] New scenarios are clearly marked
+- [ ] `openspec validate --strict` passes
+
+## Project-Specific Best Practices
+
+### Async/Await Patterns
+- Always use `async/await`, never callbacks
+- All async functions must handle errors with try/catch
+- Use `Promise.all()` for parallel operations only when operations are independent
+
+### File Operations
+- Use `renameSync()` for atomic file updates (prevents race conditions)
+- Always write to temp file first, then rename
+- Never update critical files (status.json, job.json) without atomic rename
+
+### Error Handling
+- Wrap external API errors in `McpError`
+- Include request context (requestId, conversationId) in all error logs
+- Use appropriate error codes: ValidationError, ApiError, NotFoundError, TimeoutError, InternalError
+
+### Type Safety
+- No `any` types without strict justification and comment explaining why
+- All Zod schemas must be validated before use
+- Export types alongside schemas: `export type X = z.infer<typeof XSchema>`
+
+### Testing Requirements
+- Write unit tests for all new logic in `tests/unit/`
+- Mock external dependencies with `jest.mock()` or `nock`
+- All tests must be isolated and not depend on execution order
+- Aim for >80% coverage on critical paths
+
